@@ -3,6 +3,7 @@ package server
 import (
   "fmt"
   "log"
+  "strconv"
   "strings"
 
   socketio "github.com/googollee/go-socket.io"
@@ -14,15 +15,18 @@ type RoomUser struct {
 }
 
 type RoomzSignalingServer struct {
+  // Socket.io server.
   Server    *socketio.Server
-  roomUsers map[string][]RoomUser
+  // Map of Room ID -> Slice of RoomUsers.
+  roomUsers map[int64][]RoomUser
+  // TODO: add mutex lock on shared resource.
 }
 
-func (r *RoomzSignalingServer) Init() *RoomzSignalingServer {
+func New() *RoomzSignalingServer {
   server := socketio.NewServer(nil)
   rms := &RoomzSignalingServer{
     Server: server,
-    roomUsers: make(map[string][]RoomUser),
+    roomUsers: make(map[int64][]RoomUser),
   }
   rms.routes()
   return rms
@@ -31,7 +35,7 @@ func (r *RoomzSignalingServer) Init() *RoomzSignalingServer {
 func (r *RoomzSignalingServer) routes() {
   r.Server.OnConnect("/", r.connectHandler)
   r.Server.OnDisconnect("/", r.disconnectHandler)
-  r.Server.OnEvent("/", "join", r.joinHandler)
+  r.Server.OnEvent("/", "joinMediaRoom", r.joinMediaRoomHandler)
   r.Server.OnEvent("/", "relayICECandidate", r.relayICECandidateHandler)
   r.Server.OnEvent("/", "relaySDP", r.relaySDPHandler)
 }
@@ -46,16 +50,26 @@ func (r *RoomzSignalingServer) disconnectHandler(s socketio.Conn, msg string) {
   log.Println("User:", s.ID(), "disconnected...");
 }
 
-func (r *RoomzSignalingServer) joinHandler(s socketio.Conn, data map[string]interface{}) {
-  log.Printf("[join] data: %v\n", data)
-  roomId, ok := data["room_id"].(string);
-  if !ok || len(roomId) == 0 {
+func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[string]interface{}) {
+  log.Printf("[joinMediaRoom] data: %v\n", data)
+  roomIdStr, ok := data["room_id"].(string);
+  if !ok || len(roomIdStr) == 0 {
     log.Printf("invalid room id")
     return
   }
-  userId, ok := data["user_id"].(string);
-  if !ok || len(userId) == 0 {
+  roomId, err := strconv.ParseInt(roomIdStr, 10, 64)
+  if err != nil {
+    log.Printf("room id is not an int")
+    return
+  }
+  userIdStr, ok := data["user_id"].(string);
+  if !ok || len(userIdStr) == 0 {
     log.Printf("invalid user id")
+    return
+  }
+  userId, err := strconv.ParseInt(userIdStr, 10, 64)
+  if err != nil {
+    log.Printf("user id is not an int")
     return
   }
   // TODO: add check if person already exists in room.
@@ -79,7 +93,7 @@ func (r *RoomzSignalingServer) joinHandler(s socketio.Conn, data map[string]inte
     peerId: peerId,
   })
   // Join user to socketio room
-  r.Server.JoinRoom("/", roomId, s)
+  r.Server.JoinRoom("/", roomIdStr, s)
 }
 
 func (r *RoomzSignalingServer) relayICECandidateHandler(s socketio.Conn, data map[string]interface{}) {
@@ -95,7 +109,8 @@ func (r *RoomzSignalingServer) relayICECandidateHandler(s socketio.Conn, data ma
     return
   }
   log.Printf("[relayICE] %v relaying ICE candidate to %v", fromPeerId, toPeerId)
-  roomId := strings.Split(toPeerId, "-")[0]
+  roomIdStr := strings.Split(toPeerId, "-")[0]
+  roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
   for _, roomUser := range r.roomUsers[roomId] {
     if roomUser.peerId == toPeerId {
       r.Server.BroadcastToRoom("/", roomUser.sId, "incomingICECandidate", map[string]interface{}{
@@ -119,7 +134,8 @@ func (r *RoomzSignalingServer) relaySDPHandler(s socketio.Conn, data map[string]
     return
   }
   log.Printf("[relaySDP] %v relaying SDP to %v", fromPeerId, toPeerId)
-  roomId := strings.Split(toPeerId, "-")[0]
+  roomIdStr := strings.Split(toPeerId, "-")[0]
+  roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
   for _, roomUser := range r.roomUsers[roomId] {
     if roomUser.peerId == toPeerId {
       r.Server.BroadcastToRoom("/", roomUser.sId, "incomingSDP", map[string]interface{}{

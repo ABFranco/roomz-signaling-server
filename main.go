@@ -28,8 +28,7 @@ func GinMiddleware(allowOrigin string) gin.HandlerFunc {
 
 func main() {
   router := gin.New()
-  rms := &server.RoomzSignalingServer{}
-  rms = rms.Init()
+  rms := server.New()
 
   go rms.Server.Serve()
   defer rms.Server.Close()
