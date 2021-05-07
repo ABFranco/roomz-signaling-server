@@ -35,9 +35,9 @@ func New() *RoomzSignalingServer {
 func (r *RoomzSignalingServer) routes() {
   r.Server.OnConnect("/", r.connectHandler)
   r.Server.OnDisconnect("/", r.disconnectHandler)
-  r.Server.OnEvent("/", "joinMediaRoom", r.joinMediaRoomHandler)
-  r.Server.OnEvent("/", "relayICECandidate", r.relayICECandidateHandler)
-  r.Server.OnEvent("/", "relaySDP", r.relaySDPHandler)
+  r.Server.OnEvent("/", "JoinMediaRoom", r.joinMediaRoomHandler)
+  r.Server.OnEvent("/", "RelayICECandidate", r.relayICECandidateHandler)
+  r.Server.OnEvent("/", "RelaySDP", r.relaySDPHandler)
 }
 
 func (r *RoomzSignalingServer) connectHandler(s socketio.Conn) error {

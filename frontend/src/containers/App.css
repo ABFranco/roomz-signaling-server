@@ -1,0 +1,171 @@
+/*
+  This is the "main" CSS file for the entire project.
+  All "default" styles should be defined here.
+
+
+*/
+
+/* COLORS */
+
+:root {
+  --white-lighter     : #F8F9FA;
+  --white-light       : #E9ECEF;
+  --gray-light        : #DEE2E6;
+  --gray              : #ADB5BD;
+  --gray-dark         : #495057;
+  --black-light       : #343A40;
+  --black             : #212529;
+  --black-dark        : #0A0908;
+
+  --blue-darker       : #0b2545;
+  --blue-dark         : #13315C;
+  --blue              : #134074;
+  --blue-light        : #8DA9C4;
+  --blue-lighter      : #ADD7F6;
+  
+  --coral             : #ff8552;
+  --orange            : #F95738;
+  --lemon             : #FAF0CA;
+  --lavendar          : #a09cb0;
+  --green             : #297373;
+  --green-light       : #A1E8AF;
+  --cream             : #eef4ed;
+}
+
+/* PROJECT THEME */
+
+h1, h2, h3, h4, h5, h6, p {
+  padding: 0px;
+  margin: 0px;
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus {
+  outline: none;
+}
+
+button {
+  border: none;
+  border-radius: 8px;
+  padding: 12px 20px;
+  margin: 0px;
+  cursor: pointer;
+  font-size: 16px;
+  flex-grow: 0;
+}
+
+label {
+  margin: 0px;
+  padding: 0px;
+  font-size: 16px;
+  color: var(--black);
+}
+
+input {
+  border: none;
+  border-radius: 4px;
+  background-color: var(--white-light);
+  padding: 8px;
+  font-size: 16px;
+  color: var(--black)
+}
+
+
+/* APP */
+
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  animation: App-logo-spin infinite 20s linear;
+  height: 40vmin;
+  pointer-events: none;
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.room-container {
+  display: flex;
+  flex-direction: column;
+}
+
+.button-primary {
+  margin: 8px;
+  color: white;
+  background-color: var(--blue);
+  transition: 250ms;
+}
+
+.button-primary:hover {
+  transition: 250ms;
+  background-color: var(--blue-dark);
+}
+
+.button-secondary {
+  margin: 8px;
+  color: white;
+  background-color: var(--coral);
+  transition: 250ms;
+}
+
+.button-secondary:hover {
+  transition: 250ms;
+  background-color: var(--orange);
+}
+
+.form-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+  .form-container h3 {
+    margin: 12px;
+  }
+
+.form-input {
+  font-size: 16px;
+  padding: 8px;
+  margin: 8px;
+  border: none;
+  border-radius: 4px;
+  width: calc(100% - 32px);
+}
+
+video {
+  width: 320px;
+  height: 240px;
+  border: 1px solid black;
+}
+
+.videos {
+  display: flex;
+  width: 120vw;
+  max-width: 700px;
+  padding: 5% 20%;
+}
