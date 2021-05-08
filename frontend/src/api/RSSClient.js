@@ -73,9 +73,11 @@ function awaitIncomingSDP(cb) {
 }
 
 export {
-  rmsClientSocket,
+  rssClientSocket,
   askToConnect,
   joinMediaRoom,
+  relayIceCandidate,
+  relaySDP,
   awaitAddPeer,
   awaitIncomingIceCandidate,
   awaitIncomingSDP,
