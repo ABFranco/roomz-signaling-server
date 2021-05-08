@@ -69,6 +69,10 @@ function App(props) {
     )
   }
 
+  function enterMediaRoom() {
+
+  }
+
   // completeBroadcast creates a broadcaster pc, adds the local media tracks
   // onto the broadcaster pc, and performs the offer/answer process with the
   // RMS. This should be called before emitting a "RecvMediaFrom" event
@@ -239,30 +243,114 @@ function App(props) {
       'user_id': userId,
       'room_id': roomId,
     }
-    rmsClient.joinMediaRoom(data, () => {
-      console.log('userId: %o joined media room: %o', userId, roomId);
-      rmsClient.awaitExistingMediaRoomiez((resp) => {
-        console.log('received existing media roomiez, resp=%o', resp)
-        // TODO: iterate through each roomy and request to receive media from
-        // them.
-      })
-      rmsClient.awaitNewMediaRoomyArrived((resp) => {
-        console.log('new roomy arrived, resp=%o', resp)
-        let fromPeerId = resp["peer_id"];
-        if (fromPeerId === myPeerId) {
-          completeBroadcast(myPeerId, () => {
-            // NOTE: a callback is necessary here to ensure the offer we
-            // send to the RMS when requesting to receive media has been
-            // updated after our local/remote descriptions have been set
-            // after completing the broadcast pc.
-            recvMediaFrom(fromPeerId)
-          })
-        } else {
-          recvMediaFrom(fromPeerId)
+    rssClient.joinMediaRoom(data, () => {
+      rssClient.awaitAddPeer((data) => {
+        let peerId = data["peer_id"]
+        let isOfferer = data["is_offerer"]
+        if (peerId in roomPcs) {
+          console.log('Already connected to peer=%o', peerId)
+          return
+        }
+
+        let pc = newPeerConnection()
+
+        pc.onicecandidate = function(event) {
+          if (event.candidate) {
+            let iceCandidateData = {
+              'peer_id': peerId,
+              'ice_candidate': {
+                'sdpMLineIndex': event.candidate.sdpMLineIndex,
+                'candidate': event.candidate.candidate,
+              }
+            }
+            rssClient.relayIceCandidate(iceCandidateData, () => {})
+          }
+        }
+
+        // Await incoming media stream.
+        pc.onaddstream = function(event) {
+          console.log('incoming stream for peerId=%o', peerId)
+          // TODO: muta audio/video.
+          // TODO: grid.
+          ingressMediaStream = event.stream
+          ingressMediaRef.current.srcObject = ingressMediaStream
         }
         
+        // Add local media stream on pc.
+        pc.addStream(egressMediaStream);
+
+        // If offerer, create offer.
+        if (isOfferer) {
+          console.log('Creating offer to peerId=%o', peerId);
+          pc.createOffer(
+            function(localDescription) {
+              console.log('Local sdp: ', localDescription)
+              pc.setLocalDescription(localDescription,
+                function() {
+                  let sdpData = {
+                    'peer_id': peerId,
+                    'sdp': localDescription,
+                  }
+                  rssClient.relaySDP(sdpData, () => {})
+                },
+                function { Alert("setLocalDescription failed!")}
+              )
+            },
+            function(e) {
+              console.log('Error sending offer=%o', e)
+            }
+          )
+        }
       })
+
+      rssClient.awaitIncomingSDP((data) => {
+        console.log('Received remote sdp=%o', data)
+        let peerId = data["peer_id"]
+        let pc = roomyPcs[peerId];
+        let remoteSDP = data["sdp"];
+        let desc = new RTCSessionDescription(remoteSDP);
+        let stuff = pc.setRemoteDescription(desc,
+          function() {
+            console.log('setRemoteDescription succeeded')
+            if (remoteSDP.type == "offer") {
+              console.log('Creating answer')
+              pc.createAnswer(
+                function(localDescription) {
+                  console.log('Answer description is=%o', localDescription)
+                  pc.setLocalDescription(localDescription,
+                    function() {
+                      let sdpData = {
+                        'peer_id': peerId,
+                        'sdp': localDescription,
+                      }
+                      rssClient.relaySDP(sdpData, () => {})
+                    },
+                    function(e) {
+                      console.log('error creating answer=%o', e)
+                    }
+                  )
+                }
+              )
+            }
+          },
+          function(e) {
+            console.log('setRemoteDescription error=%o', e)
+          }
+        )
+        console.log('description object: ', desc);
+      })
+
+      rssClient.awaitIncomingIceCandidate((data) => {
+        let peerId = data["peer_id"]
+        let pc = roomyPcs[peerId]
+        let iceCandidate = data["ice_candidate"]
+        pc.addIceCandidate(new RTCIceCandidate(iceCandidate))
+      })
+
+      // TODO: handle peer left.
     })
+
+
   }
 
   return (
