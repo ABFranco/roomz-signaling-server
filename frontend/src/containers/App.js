@@ -79,6 +79,7 @@ function App(props) {
     }
     rssClient.joinMediaRoom(data, () => {
       rssClient.awaitAddPeer((data) => {
+        console.log('Received request to AddPeer=%o', data)
         let peerId = data["peer_id"]
         let isOfferer = data["is_offerer"]
         if (peerId in roomyPcs) {
@@ -87,17 +88,23 @@ function App(props) {
         }
 
         let pc = newPeerConnection()
+        roomyPcs[peerId] = pc;
 
         pc.onicecandidate = function(event) {
+          console.log('received possible ICE candidate for peerId=%o', peerId)
+          console.log(event)
           if (event.candidate) {
             let iceCandidateData = {
-              'peer_id': peerId,
+              'from_peer_id': myPeerId,
+              'to_peer_id': peerId,
               'ice_candidate': {
                 'sdpMLineIndex': event.candidate.sdpMLineIndex,
                 'candidate': event.candidate.candidate,
               }
             }
-            rssClient.relayIceCandidate(iceCandidateData, () => {})
+            rssClient.relayICECandidate(iceCandidateData, () => {
+              console.log('Sent ICE Candidate to peerId=%o', peerId)
+            })
           }
         }
 
@@ -106,6 +113,7 @@ function App(props) {
           console.log('incoming stream for peerId=%o', peerId)
           // TODO: muta audio/video.
           // TODO: grid.
+          console.log(event)
           ingressMediaStream = event.stream
           ingressMediaRef.current.srcObject = ingressMediaStream
         }
@@ -122,7 +130,8 @@ function App(props) {
               pc.setLocalDescription(localDescription,
                 function() {
                   let sdpData = {
-                    'peer_id': peerId,
+                    'from_peer_id': myPeerId,
+                    'to_peer_id': peerId,
                     'sdp': localDescription,
                   }
                   rssClient.relaySDP(sdpData, () => {})
@@ -154,7 +163,8 @@ function App(props) {
                   pc.setLocalDescription(localDescription,
                     function() {
                       let sdpData = {
-                        'peer_id': peerId,
+                        'from_peer_id': myPeerId,
+                        'to_peer_id': peerId,
                         'sdp': localDescription,
                       }
                       rssClient.relaySDP(sdpData, () => {})
@@ -174,10 +184,12 @@ function App(props) {
         console.log('description object: ', desc);
       })
 
-      rssClient.awaitIncomingIceCandidate((data) => {
+      rssClient.awaitIncomingICECandidate((data) => {
         let peerId = data["peer_id"]
         let pc = roomyPcs[peerId]
         let iceCandidate = data["ice_candidate"]
+        console.log('set ICE candidate for peerId=%o', peerId)
+        console.log(iceCandidate)
         pc.addIceCandidate(new RTCIceCandidate(iceCandidate))
       })
 
@@ -203,9 +215,22 @@ function App(props) {
           <video ref={ingressMediaRef} id="ingress-vid" autoPlay controls/>
         </div>
       </div>
-      <div className="user-actions">
-        <button className="roomz-btn button-primary" onClick={joinMediaRoom}>JoinMediaRoom</button>
+      <div className="room-user-form">
+        <form className="user-settings-form">
+          <div className="user-input-form">
+            <label htmlFor="room-id">Room Id: </label>
+            <input id="room-id" ref={roomIdRef} autoFocus/>
+          </div>
+          <div className="user-input-form">
+            <label htmlFor="user-id">User Id: </label>
+            <input id="user-id" ref={userIdRef} autoFocus/>
+          </div>
+        </form>
+        <div className="user-actions">
+          <button className="roomz-btn button-primary" onClick={joinMediaRoom}>JoinMediaRoom</button>
+        </div>
       </div>
+      
     </div>
 
   );

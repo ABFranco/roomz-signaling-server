@@ -77,13 +77,13 @@ func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[st
   for _, roomUser := range r.roomUsers[roomId] {
     // Existing roomies get an addPeer notification where they do not have to
     // make an offer.
-    r.Server.BroadcastToRoom("/", roomUser.sId, "addPeer", map[string]interface{}{
+    r.Server.BroadcastToRoom("/", roomUser.sId, "AddPeer", map[string]interface{}{
       "peer_id":    peerId,
       "is_offerer": false,
     })
     // The new roomie gets an addPeer notification but they must create an
     // offer with the existing roomie.
-    s.Emit("addPeer", map[string]interface{}{
+    s.Emit("AddPeer", map[string]interface{}{
       "peer_id":    roomUser.peerId,
       "is_offerer": true,
     }, s.ID())
@@ -97,7 +97,7 @@ func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[st
 }
 
 func (r *RoomzSignalingServer) relayICECandidateHandler(s socketio.Conn, data map[string]interface{}) {
-  log.Printf("[relayICE] received request")
+  log.Printf("[relayICE] received request, data=%v", data)
   toPeerId, ok := data["to_peer_id"].(string)
   if !ok || len(toPeerId) == 0 {
     log.Printf("invalid to peer id")
@@ -113,7 +113,7 @@ func (r *RoomzSignalingServer) relayICECandidateHandler(s socketio.Conn, data ma
   roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
   for _, roomUser := range r.roomUsers[roomId] {
     if roomUser.peerId == toPeerId {
-      r.Server.BroadcastToRoom("/", roomUser.sId, "incomingICECandidate", map[string]interface{}{
+      r.Server.BroadcastToRoom("/", roomUser.sId, "IncomingICECandidate", map[string]interface{}{
         "peer_id":       fromPeerId,
         "ice_candidate": data["ice_candidate"],
       })
@@ -138,7 +138,7 @@ func (r *RoomzSignalingServer) relaySDPHandler(s socketio.Conn, data map[string]
   roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
   for _, roomUser := range r.roomUsers[roomId] {
     if roomUser.peerId == toPeerId {
-      r.Server.BroadcastToRoom("/", roomUser.sId, "incomingSDP", map[string]interface{}{
+      r.Server.BroadcastToRoom("/", roomUser.sId, "IncomingSDP", map[string]interface{}{
         "peer_id": fromPeerId,
         "sdp":     data["sdp"],
       })

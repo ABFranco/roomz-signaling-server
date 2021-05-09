@@ -19,10 +19,10 @@ async function askToConnect() {
 
 const events = {
   JOIN_MEDIA_ROOM: 'JoinMediaRoom',
-  RELAY_ICE_CANDIDATE: 'RelayIceCandidate',
+  RELAY_ICE_CANDIDATE: 'RelayICECandidate',
   RELAY_SDP: 'RelaySDP',
   ADD_PEER: 'AddPeer',
-  INCOMING_ICE_CANDIDATE: 'IncomingIceCandidate',
+  INCOMING_ICE_CANDIDATE: 'IncomingICECandidate',
   INCOMING_SDP: "IncomingSDP",
 }
 
@@ -40,8 +40,8 @@ function joinMediaRoom(data, cb) {
   cb()
 }
 
-function relayIceCandidate(data, cb) {
-  console.log('rss.relayIceCandidate: Sending request to relay ICE candidate, data=%o', data)
+function relayICECandidate(data, cb) {
+  console.log('rss.relayICECandidate: Sending request to relay ICE candidate, data=%o', data)
   rssClientSocket.emit(events.RELAY_ICE_CANDIDATE, data);
   cb()
 }
@@ -58,8 +58,8 @@ function awaitAddPeer(cb) {
   })
 }
 
-function awaitIncomingIceCandidate(cb) {
-  console.log('rss.awaitIncomingIceCandidate:')
+function awaitIncomingICECandidate(cb) {
+  console.log('rss.awaitIncomingICECandidate:')
   rssClientSocket.on(events.INCOMING_ICE_CANDIDATE, function(data) {
     cb(data)
   })
@@ -76,9 +76,9 @@ export {
   rssClientSocket,
   askToConnect,
   joinMediaRoom,
-  relayIceCandidate,
+  relayICECandidate,
   relaySDP,
   awaitAddPeer,
-  awaitIncomingIceCandidate,
+  awaitIncomingICECandidate,
   awaitIncomingSDP,
 };
