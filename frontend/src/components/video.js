@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 function Video(props) {
   const [mediaStream, setMediaStream] = useState(null);
@@ -7,11 +7,22 @@ function Video(props) {
   const [peerId, setPeerId] = useState("");
   const mediaRef = useRef();
 
-  return (
-    <div className="video" id={peerId}>
-      <video ref={mediaRef} id="egress-video" autoPlay controls/>
-    </div>
-  )
+  useEffect(() => {
+    console.log('new props')
+    mediaRef.current.srcObject = props.stream;
+  }, [props.stream])
+
+  if (props.stream !== null) {
+    console.log('hello')
+    return (
+      <div className="video" id={peerId}>
+        <video ref={mediaRef} id="egress-video" autoPlay controls/>
+      </div>
+    )
+  } else {
+    return (<div></div>)
+  }
+  
 }
 
 export default Video;

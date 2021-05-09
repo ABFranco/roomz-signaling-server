@@ -1,6 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-
+import React, { useState, useEffect, useRef, useReducer } from 'react';
 import * as rssClient from '../api/RSSClient.js'
+import Grid from '../components/grid.js';
 import './App.css';
 
 
@@ -22,10 +22,17 @@ function App(props) {
   let myPeerId = "";
   let egressMediaStream = null;
   let ingressMediaStream = null;
+  const [videoStreams, dispatchVideoStreams] = useReducer(addVideoStream, []);
 
   useEffect(() => {
     rssClient.askToConnect()
   })
+
+  function addVideoStream(prevVideoStreams, newStream) {
+    console.log('adding new video stream')
+    let newVideoStreams = [...prevVideoStreams, newStream];
+    return newVideoStreams;
+  }
   
   // setupLocalMedia requests access to the user's microphone and webcam and
   // properly sets up the egress media stream.
@@ -47,6 +54,9 @@ function App(props) {
         console.log('Granted access to audio/video')
         egressMediaStream = stream
         egressMediaRef.current.srcObject = egressMediaStream
+        // Add this stream to the video streams
+        dispatchVideoStreams(egressMediaStream)
+        console.log('video streams=%o', videoStreams)
         if (cb) cb();
       },
       function() {
@@ -260,7 +270,11 @@ function App(props) {
           <button className="roomz-btn button-primary" onClick={joinMediaRoom}>JoinMediaRoom</button>
         </div>
       </div>
-      
+      <div className="grid-test">
+        <Grid
+          videos={videoStreams}
+          />
+      </div>
     </div>
 
   );
