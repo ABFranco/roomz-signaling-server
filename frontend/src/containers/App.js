@@ -147,7 +147,7 @@ function App(props) {
       })
 
       rssClient.awaitIncomingSDP((data) => {
-        console.log('Received remote sdp=%o', data)
+        console.log('Received incoming sdp=%o', data)
         let peerId = data["peer_id"]
         let pc = roomyPcs[peerId];
         let remoteSDP = data["sdp"];
@@ -158,6 +158,7 @@ function App(props) {
             if (remoteSDP.type == "offer") {
               console.log('Creating answer')
               pc.createAnswer(
+                // Failing here.
                 function(localDescription) {
                   console.log('Answer description is=%o', localDescription)
                   pc.setLocalDescription(localDescription,
@@ -170,9 +171,12 @@ function App(props) {
                       rssClient.relaySDP(sdpData, () => {})
                     },
                     function(e) {
-                      console.log('error creating answer=%o', e)
+                      console.log('error setting local description for peerId=%o, error=%o', peerId, e)
                     }
                   )
+                },
+                function(e) {
+                  console.log('error creating answer=%o', e)
                 }
               )
             }
