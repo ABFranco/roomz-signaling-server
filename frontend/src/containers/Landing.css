@@ -1,0 +1,21 @@
+/* Landing styles */
+.landing-container {
+  width: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  vertical-align: middle;
+  justify-content: center;
+  min-height: 99vh;
+  /* background-color: #f6f6f6; */
+  background-color: var(--white-lighter);
+}
+
+.page-title {
+  /* color: #0c6793; */
+  color: var(--blue);
+  margin-bottom: 20px;
+  margin-top: -20px;
+  font-size: 1em;
+  font-variant-caps: small-caps;
+}
