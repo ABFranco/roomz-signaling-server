@@ -10,8 +10,6 @@ function App(props) {
   // will be overridden by latest joined user.
   const roomIdRef = useRef();
   const userIdRef = useRef();
-  // const egressMediaRef = useRef();
-  // const ingressMediaRef = useRef();
 
   // These are public domain STUN servers offered for free from Google.
   // Ty Google :)
@@ -20,8 +18,6 @@ function App(props) {
   ];
   let roomyPcs = {};
   let myPeerId = "";
-  let egressMediaStream = null;
-  let ingressMediaStream = null;
   const [videoStreams, dispatchVideoStreams] = useReducer(addVideoStream, []);
 
   useEffect(() => {
@@ -31,7 +27,7 @@ function App(props) {
   // Add Video Stream appends a peer's video stream data to the array of
   // video streams passed via props to the Grid component.
   function addVideoStream(prevVideoStreams, newStream) {
-    console.log('Adding new video stream to grid.')
+    console.log('Adding new video stream to grid')
     let newVideoStreams = [...prevVideoStreams, newStream];
     return newVideoStreams;
   }
@@ -54,8 +50,6 @@ function App(props) {
     navigator.getUserMedia({"audio": true, "video": true},
       function(stream) {
         console.log('Granted access to audio/video')
-        // egressMediaStream = stream
-        // egressMediaRef.current.srcObject = egressMediaStream
         // Add local video stream to Grid.
         let addVideoData = {
           'stream': stream,
@@ -152,13 +146,13 @@ function App(props) {
             'peerId': peerId,
           }
           dispatchVideoStreams(addVideoData);
-          // ingressMediaStream = event.stream
-          // ingressMediaRef.current.srcObject = ingressMediaStream
         }
         
         // To begin sending media data to the new peer, we must add the stream
         // on the peer connection.
         if (videoStreams.length > 0) {
+          // NOTE: It is currently guaranteed that the first videoStream is the
+          // local media stream.
           console.log('Attaching local media stream onto peerId=%o\'s peer connection')
           pc.addStream(videoStreams[0].stream);
         }
@@ -259,16 +253,6 @@ function App(props) {
       <div className="user-actions">
         <button className="roomz-btn button-primary" onClick={setupLocalMedia}>Setup Media</button>
       </div>
-      {/* <div className="videos">
-        <div className="video" id="egress">
-          <label htmlFor="outgoing-vid">Egress Video</label><br/>
-          <video ref={egressMediaRef} id="egress-vid" autoPlay controls/>
-        </div>
-        <div className="video" id="incoming">
-          <label htmlFor="incoming-vid">Ingress Video</label><br/>
-          <video ref={ingressMediaRef} id="ingress-vid" autoPlay controls/>
-        </div>
-      </div> */}
       <div className="room-user-form">
         <form className="user-settings-form">
           <div className="user-input-form">
