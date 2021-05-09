@@ -4,13 +4,17 @@ import * as rssClient from '../api/RSSClient.js'
 import './App.css';
 
 
-
 function App(props) {
+  // Currently, we only do P2P video chat between 2 people. If a third enters
+  // the room, the RSS will support, however, the 'Ingress Media Element'
+  // will be overridden by latest joined user.
   const roomIdRef = useRef();
   const userIdRef = useRef();
   const egressMediaRef = useRef();
   const ingressMediaRef = useRef();
 
+  // These are public domain STUN servers offered for free from Google.
+  // Ty Google :)
   let ICE_SERVERS = [
     {urls:"stun:stun.l.google.com:19302"}
   ];
@@ -31,7 +35,7 @@ function App(props) {
       if (cb) cb();
       return
     }
-    console.log('asking for local audio/video inputs')
+    console.log('Asking for local audio/video inputs')
     navigator.getUserMedia = (navigator.getUserMedia ||
       navigator.webkitGetUserMedia ||
       navigator.mozGetUserMedia ||
@@ -40,34 +44,34 @@ function App(props) {
     // TODO: Pass config to mute audio/video.
     navigator.getUserMedia({"audio": true, "video": true},
       function(stream) {
-        console.log('granted access to audio/video')
+        console.log('Granted access to audio/video')
         egressMediaStream = stream
         egressMediaRef.current.srcObject = egressMediaStream
         if (cb) cb();
       },
       function() {
-        console.log('access denied for audio/video')
-        alert('have fun being lame on zoom')
+        console.log('Access denied for audio/video')
+        alert('Have fun being lame on zoom')
         if (eb) eb();
       });
   }
 
   function setupLocalMedia() {
     setupLocalMediaUtil(() => {
-      console.log('successfully setup local media')
+      console.log('Successfully setup local media')
     })
   }
 
   function newPeerConnection() {
     return new RTCPeerConnection(
       {"iceServers": ICE_SERVERS},
-      // This is needed for chrome/firefox/edge support.
+      // NOTE: This is needed for chrome/firefox/edge support.
       {"optional": [{"DtlsSrtpKeyAgreement": true}]}
     )
   }
 
-  // joinMediaRoom emits the 'JoinMediaRoom' event to the RMS and registers
-  // event handlers for possible response events from the RMS.
+  // joinMediaRoom emits the 'JoinMediaRoom' event to the RSS and registers
+  // event handlers for possible response events from the RSS.
   function joinMediaRoom() {
     // TODO: validation.
     let roomId = roomIdRef.current.value;
@@ -78,26 +82,39 @@ function App(props) {
       'room_id': roomId,
     }
     rssClient.joinMediaRoom(data, () => {
+      // Once in the room, we must await any new joining RoomUser. Once this
+      // happens, we must start the webrtc offer/answer process and relay of
+      // ICE candidates so data can flow from one to the other P2P.
       rssClient.awaitAddPeer((data) => {
         console.log('Received request to AddPeer=%o', data)
         let peerId = data["peer_id"]
+        // An 'AddPeer' request has a boolean 'is_offerer' field, this
+        // indicates whether a person is the initial offerer to start the
+        // offer/answer process. Any new joining member is the initiator.
         let isOfferer = data["is_offerer"]
         if (peerId in roomyPcs) {
           console.log('Already connected to peer=%o', peerId)
           return
         }
 
+        // Create a fresh peer connection we will use to create offers/answers
+        // relay ICE candidates on, and respond to new media events. Store
+        // these away to grab the "socket" if you will to a peer's peer
+        // connection.
         let pc = newPeerConnection()
         roomyPcs[peerId] = pc;
 
+        // ICE Candidate events represent network connection candidates used to
+        // form a connection between 2 peers.
         pc.onicecandidate = function(event) {
-          console.log('received possible ICE candidate for peerId=%o', peerId)
+          console.log('Received possible ICE candidate for peerId=%o', peerId)
           console.log(event)
           if (event.candidate) {
             let iceCandidateData = {
               'from_peer_id': myPeerId,
               'to_peer_id': peerId,
               'ice_candidate': {
+                // NOTE: I don't really know what this is yet, but is needed.
                 'sdpMLineIndex': event.candidate.sdpMLineIndex,
                 'candidate': event.candidate.candidate,
               }
@@ -108,9 +125,9 @@ function App(props) {
           }
         }
 
-        // Await incoming media stream.
+        // Await incoming media stream events on the peer connection.
         pc.onaddstream = function(event) {
-          console.log('incoming stream for peerId=%o', peerId)
+          console.log('Incoming stream for peerId=%o', peerId)
           // TODO: muta audio/video.
           // TODO: grid.
           console.log(event)
@@ -118,10 +135,13 @@ function App(props) {
           ingressMediaRef.current.srcObject = ingressMediaStream
         }
         
-        // Add local media stream on pc.
+        // To begin sending media data to the new peer, we must add the stream
+        // on the peer connection.
         pc.addStream(egressMediaStream);
 
-        // If offerer, create offer.
+        // If offerer, create an offer to the existing RoomUser, and then
+        // set the local description on the peer connection to communicate
+        // what media they recognize.
         if (isOfferer) {
           console.log('Creating offer to peerId=%o', peerId);
           pc.createOffer(
@@ -146,6 +166,10 @@ function App(props) {
         }
       })
 
+      // If not the offerer, the RFE client must respond to offers from any
+      // incoming new RoomUsers. They do this by creating answers on the
+      // new RoomUser's peer connection, and then setting the remote/local
+      // descriptions to complete the media acceptance agreement.
       rssClient.awaitIncomingSDP((data) => {
         console.log('Received incoming sdp=%o', data)
         let peerId = data["peer_id"]
@@ -154,13 +178,12 @@ function App(props) {
         let desc = new RTCSessionDescription(remoteSDP);
         let stuff = pc.setRemoteDescription(desc,
           function() {
-            console.log('setRemoteDescription succeeded')
-            if (remoteSDP.type == "offer") {
-              console.log('Creating answer')
+            console.log('Set remote description for peerId=%o', peerId)
+            if (remoteSDP.type === "offer") {
+              console.log('Received an offer from peerId=%', peerId)
               pc.createAnswer(
-                // Failing here.
                 function(localDescription) {
-                  console.log('Answer description is=%o', localDescription)
+                  console.log('Answer description for peerId=%o is =%o', peerId, localDescription)
                   pc.setLocalDescription(localDescription,
                     function() {
                       let sdpData = {
@@ -171,7 +194,7 @@ function App(props) {
                       rssClient.relaySDP(sdpData, () => {})
                     },
                     function(e) {
-                      console.log('error setting local description for peerId=%o, error=%o', peerId, e)
+                      console.log('Error setting local description for peerId=%o, error=%o', peerId, e)
                     }
                   )
                 },
@@ -188,11 +211,14 @@ function App(props) {
         console.log('description object: ', desc);
       })
 
+      // The RFE Client must also respond to ICE or simply network connection
+      // canidate events. The ICE candidate must be added to the peer's peer
+      // connection.
       rssClient.awaitIncomingICECandidate((data) => {
         let peerId = data["peer_id"]
         let pc = roomyPcs[peerId]
         let iceCandidate = data["ice_candidate"]
-        console.log('set ICE candidate for peerId=%o', peerId)
+        console.log('Set ICE candidate for peerId=%o', peerId)
         console.log(iceCandidate)
         pc.addIceCandidate(new RTCIceCandidate(iceCandidate))
       })

@@ -8,6 +8,8 @@ import (
   "github.com/gin-gonic/gin"
 )
 
+// NOTE: This is for authentication with the RFE, we must add the correct
+// origin/credential/methods, headers on each request.
 func GinMiddleware(allowOrigin string) gin.HandlerFunc {
   return func(c *gin.Context) {
     c.Writer.Header().Set("Access-Control-Allow-Origin", allowOrigin)

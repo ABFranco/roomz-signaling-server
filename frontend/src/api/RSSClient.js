@@ -1,5 +1,5 @@
 import io from 'socket.io-client';
-// Connect to RMS
+// Connect to RSS.
 const rssClientSocket = io("http://localhost:5000", {
   autoConnect: false,
   reconnection: true,
@@ -27,15 +27,15 @@ const events = {
 }
 
 rssClientSocket.on('disconnect', () => {
-  console.log(':rms: DISCONNECTED from RMS');
+  console.log(':rss: DISCONNECTED from rss');
 })
 
 rssClientSocket.on('reconnect_failed', () => {
-  console.log(':rms: Failed to reconnect. Closing socket.');
+  console.log(':rss: Failed to reconnect. Closing socket.');
 })
 
 function joinMediaRoom(data, cb) {
-  console.log(':rms.joinMediaRoom: Sending request to join media room, data=%o', data)
+  console.log(':rss.joinMediaRoom: Sending request to join media room, data=%o', data)
   rssClientSocket.emit(events.JOIN_MEDIA_ROOM, data);
   cb()
 }
