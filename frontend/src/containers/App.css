@@ -169,3 +169,8 @@ video {
   max-width: 700px;
   padding: 5% 20%;
 }
+
+.grid-container {
+  display: flex;
+  justify-content: center;
+}

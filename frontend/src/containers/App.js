@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useReducer } from 'react';
+import React, { useEffect, useRef, useReducer } from 'react';
 import * as rssClient from '../api/RSSClient.js'
 import Grid from '../components/grid.js';
 import './App.css';
@@ -10,8 +10,8 @@ function App(props) {
   // will be overridden by latest joined user.
   const roomIdRef = useRef();
   const userIdRef = useRef();
-  const egressMediaRef = useRef();
-  const ingressMediaRef = useRef();
+  // const egressMediaRef = useRef();
+  // const ingressMediaRef = useRef();
 
   // These are public domain STUN servers offered for free from Google.
   // Ty Google :)
@@ -28,8 +28,10 @@ function App(props) {
     rssClient.askToConnect()
   })
 
+  // Add Video Stream appends a peer's video stream data to the array of
+  // video streams passed via props to the Grid component.
   function addVideoStream(prevVideoStreams, newStream) {
-    console.log('adding new video stream')
+    console.log('Adding new video stream to grid.')
     let newVideoStreams = [...prevVideoStreams, newStream];
     return newVideoStreams;
   }
@@ -38,7 +40,7 @@ function App(props) {
   // properly sets up the egress media stream.
   // NOTE: This will likely be called on load within the vestibule component.
   function setupLocalMediaUtil(cb, eb) {
-    if (egressMediaStream != null) {
+    if (videoStreams.length > 0 && videoStreams[0].stream != null) {
       if (cb) cb();
       return
     }
@@ -52,11 +54,16 @@ function App(props) {
     navigator.getUserMedia({"audio": true, "video": true},
       function(stream) {
         console.log('Granted access to audio/video')
-        egressMediaStream = stream
-        egressMediaRef.current.srcObject = egressMediaStream
-        // Add this stream to the video streams
-        dispatchVideoStreams(egressMediaStream)
-        console.log('video streams=%o', videoStreams)
+        // egressMediaStream = stream
+        // egressMediaRef.current.srcObject = egressMediaStream
+        // Add local video stream to Grid.
+        let addVideoData = {
+          'stream': stream,
+          // NOTE: I may want to access a stream one day by peerId.
+          // Use -1 to indicate local media stream.
+          'peerId': -1,
+        }
+        dispatchVideoStreams(addVideoData)
         if (cb) cb();
       },
       function() {
@@ -138,16 +145,23 @@ function App(props) {
         // Await incoming media stream events on the peer connection.
         pc.onaddstream = function(event) {
           console.log('Incoming stream for peerId=%o', peerId)
-          // TODO: muta audio/video.
-          // TODO: grid.
           console.log(event)
-          ingressMediaStream = event.stream
-          ingressMediaRef.current.srcObject = ingressMediaStream
+          // TODO: muta audio/video.
+          let addVideoData = {
+            'stream': event.stream,
+            'peerId': peerId,
+          }
+          dispatchVideoStreams(addVideoData);
+          // ingressMediaStream = event.stream
+          // ingressMediaRef.current.srcObject = ingressMediaStream
         }
         
         // To begin sending media data to the new peer, we must add the stream
         // on the peer connection.
-        pc.addStream(egressMediaStream);
+        if (videoStreams.length > 0) {
+          console.log('Attaching local media stream onto peerId=%o\'s peer connection')
+          pc.addStream(videoStreams[0].stream);
+        }
 
         // If offerer, create an offer to the existing RoomUser, and then
         // set the local description on the peer connection to communicate
@@ -245,7 +259,7 @@ function App(props) {
       <div className="user-actions">
         <button className="roomz-btn button-primary" onClick={setupLocalMedia}>Setup Media</button>
       </div>
-      <div className="videos">
+      {/* <div className="videos">
         <div className="video" id="egress">
           <label htmlFor="outgoing-vid">Egress Video</label><br/>
           <video ref={egressMediaRef} id="egress-vid" autoPlay controls/>
@@ -254,7 +268,7 @@ function App(props) {
           <label htmlFor="incoming-vid">Ingress Video</label><br/>
           <video ref={ingressMediaRef} id="ingress-vid" autoPlay controls/>
         </div>
-      </div>
+      </div> */}
       <div className="room-user-form">
         <form className="user-settings-form">
           <div className="user-input-form">

@@ -1,9 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
 import Video from './video';
 
 function Grid(props) {
-  const [videos, setVideos] = useState([])
-
   return (
     <div>
       <div className="grid-header">
@@ -11,13 +9,11 @@ function Grid(props) {
       </div>
       <div className="grid-container">
         {props.videos.map((v, index) => (
-          <div>
-            <Video
-              key={index}
-              stream={v}
-              />
-            <h1>video</h1>
-          </div>
+          <Video
+            key={index}
+            stream={v.stream}
+            peerId={v.peerId}
+            />
         ))}
       </div>
     </div>
