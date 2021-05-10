@@ -1,17 +1,25 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 function Video(props) {
-  const [mediaStream, setMediaStream] = useState(null);
   const [audioMuted, setAudioMuted] = useState(false);
   const [videoMuted, setVideoMuted] = useState(false);
-  const [peerId, setPeerId] = useState("");
   const mediaRef = useRef();
 
-  return (
-    <div className="video" id={peerId}>
-      <video ref={mediaRef} id="egress-video" autoPlay controls/>
-    </div>
-  )
+  useEffect(() => {
+    console.log('Setting stream data on Video component for peerId=%o', props.peerId)
+    mediaRef.current.srcObject = props.stream;
+  }, [props.stream])
+
+  if (props.stream !== null) {
+    return (
+      <div className="video" id={props.peerId}>
+        <video ref={mediaRef} id="egress-video" autoPlay controls/>
+      </div>
+    )
+  } else {
+    return (<div></div>)
+  }
+  
 }
 
 export default Video;
