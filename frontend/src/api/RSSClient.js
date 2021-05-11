@@ -21,9 +21,11 @@ const events = {
   JOIN_MEDIA_ROOM: 'JoinMediaRoom',
   RELAY_ICE_CANDIDATE: 'RelayICECandidate',
   RELAY_SDP: 'RelaySDP',
+  LEAVE_MEDIA_ROOM: 'LeaveMediaRoom',
   ADD_PEER: 'AddPeer',
   INCOMING_ICE_CANDIDATE: 'IncomingICECandidate',
   INCOMING_SDP: "IncomingSDP",
+  REMOVE_PEER: "RemovePeer",
 }
 
 rssClientSocket.on('disconnect', () => {
@@ -51,6 +53,11 @@ function relaySDP(data, cb) {
   rssClientSocket.emit(events.RELAY_SDP, data);
 }
 
+function leaveMediaRoom(data, cb) {
+  console.log(':rss.leaveMediaRoom: Sending request to leave media room, data=%o', data)
+  rssClientSocket.emit(events.LEAVE_MEDIA_ROOM, data);
+}
+
 function awaitAddPeer(cb) {
   console.log(':rss.awaitAddPeer:')
   rssClientSocket.on(events.ADD_PEER, function(data) {
@@ -72,13 +79,22 @@ function awaitIncomingSDP(cb) {
   })
 }
 
+function awaitRemovePeer(cb) {
+  console.log(':rss.awaitRemovePeer:')
+  rssClientSocket.on(events.REMOVE_PEER, function(data) {
+    cb(data)
+  })
+}
+
 export {
   rssClientSocket,
   askToConnect,
   joinMediaRoom,
   relayICECandidate,
   relaySDP,
+  leaveMediaRoom,
   awaitAddPeer,
   awaitIncomingICECandidate,
   awaitIncomingSDP,
+  awaitRemovePeer,
 };

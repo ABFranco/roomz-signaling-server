@@ -18,7 +18,7 @@ function App(props) {
   ];
   let roomyPcs = {};
   let myPeerId = "";
-  const [roomVideoStreams, dispatchVideoStreams] = useReducer(addVideoStream, []);
+  const [roomVideoStreams, dispatchVideoStreams] = useReducer(addremoveVideoStream, []);
 
   useEffect(() => {
     rssClient.askToConnect()
@@ -26,10 +26,25 @@ function App(props) {
 
   // Add Video Stream appends a peer's video stream data to the array of
   // video streams passed via props to the Grid component.
-  function addVideoStream(prevRoomVideoStreams, newStream) {
-    console.log('Adding new video stream to grid')
-    let newRoomVideoStreams = [...prevRoomVideoStreams, newStream];
-    return newRoomVideoStreams;
+  function addremoveVideoStream(prevRoomVideoStreams, actionObject) {
+    switch(actionObject.action) {
+      case 'AddStream':
+        console.log('Adding new video stream to grid')
+        let newRoomVideoStreams = [...prevRoomVideoStreams, actionObject];
+        return newRoomVideoStreams;
+      case 'RemoveStream':
+        console.log('Removing video stream from grid')
+        for (let i = 0; i < prevRoomVideoStreams.length; i++) {
+          if (prevRoomVideoStreams[i].peerId == actionObject.removePeerId) {
+            console.log('Removed video stream for peerId=%o', actionObject.removePeerId)
+            prevRoomVideoStreams.splice(i, 1)
+            break
+          }
+        }
+        return prevRoomVideoStreams;
+      default:
+        console.log('Incorrect action for addremoveVideoStream');
+    }
   }
   
   // setupLocalMedia requests access to the user's microphone and webcam and
@@ -47,11 +62,12 @@ function App(props) {
       navigator.msGetUserMedia);
     
     // TODO: Pass config to mute audio/video.
-    navigator.getUserMedia({"audio": true, "video": true},
+    navigator.getUserMedia({'audio': true, 'video': true},
       function(stream) {
         console.log('Granted access to audio/video')
         // Add local video stream to Grid.
         let addVideoData = {
+          'action': 'AddStream',
           'stream': stream,
           // NOTE: I may want to access a stream one day by peerId.
           // Use -1 to indicate local media stream.
@@ -145,6 +161,7 @@ function App(props) {
           console.log(event)
           // TODO: muta audio/video.
           let addVideoData = {
+            'action': 'AddStream',
             'stream': event.stream,
             'peerId': peerId,
           }
@@ -244,12 +261,34 @@ function App(props) {
         pc.addIceCandidate(new RTCIceCandidate(iceCandidate))
       })
 
-      // TODO: handle peer left.
+      // The RFE Client must handle peers leaving the room, and delete the
+      // resources accordingly.
+      rssClient.awaitRemovePeer((data) => {
+        let peerId = data["peer_id"]
+        console.log('Removing peerId=%o from the media room', peerId)
+        if (peerId in roomyPcs) {
+          let removeStreamData = {
+            'action': 'RemoveStream',
+            'removePeerId': peerId,
+          }
+          dispatchVideoStreams(removeStreamData)
+          roomyPcs[peerId].close();
+        }
+        delete roomyPcs[peerId];
+      })
     }) // End: joinMediaRoom.
   }
 
   function leaveMediaRoom() {
-    
+    let roomId = roomIdRef.current.value;
+    let userId = userIdRef.current.value;
+    myPeerId = roomId + "-" + userId;
+    let data = {
+      'peer_id': myPeerId,
+    }
+    rssClient.leaveMediaRoom(data, () => {
+      console.log("peerId=%o has requested to leave the room", myPeerId)
+    })
   }
 
   return (

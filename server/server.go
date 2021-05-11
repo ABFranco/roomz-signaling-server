@@ -195,6 +195,10 @@ func (r *RoomzSignalingServer) leaveMediaRoomHandler(s socketio.Conn, data map[s
       r.Server.BroadcastToRoom("/", roomUser.sId, removePeer, map[string]interface{}{
         "peer_id": peerId,
       })
+      log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, removePeer, roomUser.peerId, peerId)
+      s.Emit(removePeer, map[string]interface{}{
+        "peer_id": roomUser.peerId,
+      }, s.ID())
     }
   }
   if delIdx >= 0 {
