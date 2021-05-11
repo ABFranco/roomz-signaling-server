@@ -24,6 +24,20 @@ type RoomzSignalingServer struct {
   roomUsersMtx *sync.Mutex
 }
 
+const (
+  // Incoming socket.io events to handle.
+  joinMediaRoom = "JoinMediaRoom"
+  relayICECandidate = "RelayICECandidate"
+  relaySDP = "RelaySDP"
+  leaveMediaRoom = "LeaveMediaRoom"
+
+  // Outgoing socket.io events for the RFE to handle.
+  addPeer = "AddPeer"
+  incomingICECandidate = "IncomingICECandidate"
+  incomingSDP = "IncomingSDP"
+  removePeer = "RemovePeer"
+)
+
 func New() *RoomzSignalingServer {
   server := socketio.NewServer(nil)
   rms := &RoomzSignalingServer{
@@ -38,9 +52,10 @@ func New() *RoomzSignalingServer {
 func (r *RoomzSignalingServer) registerRoutes() {
   r.Server.OnConnect("/", r.connectHandler)
   r.Server.OnDisconnect("/", r.disconnectHandler)
-  r.Server.OnEvent("/", "JoinMediaRoom", r.joinMediaRoomHandler)
-  r.Server.OnEvent("/", "RelayICECandidate", r.relayICECandidateHandler)
-  r.Server.OnEvent("/", "RelaySDP", r.relaySDPHandler)
+  r.Server.OnEvent("/", joinMediaRoom, r.joinMediaRoomHandler)
+  r.Server.OnEvent("/", relayICECandidate, r.relayICECandidateHandler)
+  r.Server.OnEvent("/", relaySDP, r.relaySDPHandler)
+  r.Server.OnEvent("/", leaveMediaRoom, r.leaveMediaRoomHandler)
 }
 
 func (r *RoomzSignalingServer) connectHandler(s socketio.Conn) error {
@@ -51,28 +66,31 @@ func (r *RoomzSignalingServer) connectHandler(s socketio.Conn) error {
 
 func (r *RoomzSignalingServer) disconnectHandler(s socketio.Conn, msg string) {
   log.Println("User:", s.ID(), "disconnected...");
+  // TODO: if user disconnects, remove them from their room. This will involve
+  // ensuring the socket ID's are getting updated on every refresh.
 }
 
 func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[string]interface{}) {
-  log.Printf("[joinMediaRoom] data: %v\n", data)
+  prefix := fmt.Sprintf("[%s]:", joinMediaRoom)
+  log.Printf("%s data: %v\n", prefix, data)
   roomIdStr, ok := data["room_id"].(string);
   if !ok || len(roomIdStr) == 0 {
-    log.Printf("invalid room id.")
+    log.Printf("%s invalid room id.", prefix)
     return
   }
   roomId, err := strconv.ParseInt(roomIdStr, 10, 64)
   if err != nil {
-    log.Printf("room_id is not an int64.")
+    log.Printf("%s room_id is not an int64.", prefix)
     return
   }
   userIdStr, ok := data["user_id"].(string);
   if !ok || len(userIdStr) == 0 {
-    log.Printf("invalid user_id.")
+    log.Printf("%s invalid user_id.", prefix)
     return
   }
   userId, err := strconv.ParseInt(userIdStr, 10, 64)
   if err != nil {
-    log.Printf("user_id is not an int.")
+    log.Printf("%s user_id is not an int.", prefix)
     return
   }
   // TODO: add check if person already exists in room.
@@ -81,13 +99,15 @@ func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[st
   for _, roomUser := range r.roomUsers[roomId] {
     // Existing roomies get an addPeer notification where they do not have to
     // make an offer.
-    r.Server.BroadcastToRoom("/", roomUser.sId, "AddPeer", map[string]interface{}{
+    log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, addPeer, peerId, roomUser.peerId)
+    r.Server.BroadcastToRoom("/", roomUser.sId, addPeer, map[string]interface{}{
       "peer_id":    peerId,
       "is_offerer": false,
     })
     // The new roomie gets an addPeer notification but they must create an
     // offer with the existing roomie.
-    s.Emit("AddPeer", map[string]interface{}{
+    log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, addPeer, roomUser.peerId, peerId)
+    s.Emit(addPeer, map[string]interface{}{
       "peer_id":    roomUser.peerId,
       "is_offerer": true,
     }, s.ID())
@@ -97,30 +117,28 @@ func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[st
     peerId: peerId,
   })
   r.roomUsersMtx.Unlock()
-  // TODO: What mechanism in socket.io can help me emit data to everyone in a
-  // socket.io room except the emitter? That would avoid the loops.
-  r.Server.JoinRoom("/", roomIdStr, s)
 }
 
 func (r *RoomzSignalingServer) relayICECandidateHandler(s socketio.Conn, data map[string]interface{}) {
-  log.Printf("[relayICE] received request, data=%v", data)
+  prefix := fmt.Sprintf("[%s]:", relayICECandidate)
+  log.Printf("%s received request", prefix)
   toPeerId, ok := data["to_peer_id"].(string)
   if !ok || len(toPeerId) == 0 {
-    log.Printf("invalid to peer id")
+    log.Printf("%s invalid to_peer_id.", prefix)
     return
   }
   fromPeerId, ok := data["from_peer_id"].(string)
   if !ok || len(fromPeerId) == 0 {
-    log.Printf("invalid from_peer_id.")
+    log.Printf("%s invalid from_peer_id.", prefix)
     return
   }
-  log.Printf("[relayICE] %v relaying ICE candidate to %v", fromPeerId, toPeerId)
+  log.Printf("%s relaying ICE candidate from peerId=%s to peerId=%s", prefix, fromPeerId, toPeerId)
   roomIdStr := strings.Split(toPeerId, "-")[0]
   roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
   r.roomUsersMtx.Lock()
   for _, roomUser := range r.roomUsers[roomId] {
     if roomUser.peerId == toPeerId {
-      r.Server.BroadcastToRoom("/", roomUser.sId, "IncomingICECandidate", map[string]interface{}{
+      r.Server.BroadcastToRoom("/", roomUser.sId, incomingICECandidate, map[string]interface{}{
         "peer_id":       fromPeerId,
         "ice_candidate": data["ice_candidate"],
       })
@@ -132,28 +150,56 @@ func (r *RoomzSignalingServer) relayICECandidateHandler(s socketio.Conn, data ma
 func (r *RoomzSignalingServer) relaySDPHandler(s socketio.Conn, data map[string]interface{}) {
   // NOTE: I am not printing out the SDP data because it is too large and hogs
   // the console.
-  log.Printf("[relaySDP] received request")
+  prefix := fmt.Sprintf("[%s]:", relaySDP)
+  log.Printf("%s received request", prefix)
   toPeerId, ok := data["to_peer_id"].(string)
   if !ok || len(toPeerId) == 0 {
-    log.Printf("invalid to_peer_id.")
+    log.Printf("%s invalid to_peer_id.", prefix)
     return
   }
   fromPeerId, ok := data["from_peer_id"].(string)
   if !ok || len(fromPeerId) == 0 {
-    log.Printf("invalid from_peer_id.")
+    log.Printf("%s invalid from_peer_id.", prefix)
     return
   }
-  log.Printf("[relaySDP] %v relaying SDP to %v", fromPeerId, toPeerId)
   roomIdStr := strings.Split(toPeerId, "-")[0]
   roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
   r.roomUsersMtx.Lock()
   for _, roomUser := range r.roomUsers[roomId] {
     if roomUser.peerId == toPeerId {
-      r.Server.BroadcastToRoom("/", roomUser.sId, "IncomingSDP", map[string]interface{}{
+      log.Printf("%s Emitting \"%s\" from peerId=%s to peerId=%s", prefix, incomingSDP, fromPeerId, toPeerId)
+      r.Server.BroadcastToRoom("/", roomUser.sId, incomingSDP, map[string]interface{}{
         "peer_id": fromPeerId,
         "sdp":     data["sdp"],
       })
     }
+  }
+  r.roomUsersMtx.Unlock()
+}
+
+func (r *RoomzSignalingServer) leaveMediaRoomHandler(s socketio.Conn, data map[string]interface{}) {
+  prefix := fmt.Sprintf("[%s]:", leaveMediaRoom)
+  peerId, ok := data["peer_id"].(string)
+  if !ok || len(peerId) == 0 {
+    log.Printf("%s invalid peer_id.", prefix)
+  }
+  roomIdStr := strings.Split(peerId, "-")[0]
+  roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
+  delIdx := -1
+  r.roomUsersMtx.Lock()
+  for i, roomUser := range r.roomUsers[roomId] {
+    if peerId == roomUser.peerId {
+      delIdx = i
+    } else {
+      log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, removePeer, peerId, roomUser.peerId)
+      r.Server.BroadcastToRoom("/", roomUser.sId, removePeer, map[string]interface{}{
+        "peer_id": peerId,
+      })
+    }
+  }
+  if delIdx >= 0 {
+    log.Printf("Removed peerId=%s from roomId=%d", peerId, roomId)
+    r.roomUsers[roomId] = append(r.roomUsers[roomId][:delIdx], r.roomUsers[roomId][delIdx+1:]...)
   }
   r.roomUsersMtx.Unlock()
 }

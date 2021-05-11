@@ -18,7 +18,7 @@ function App(props) {
   ];
   let roomyPcs = {};
   let myPeerId = "";
-  const [videoStreams, dispatchVideoStreams] = useReducer(addVideoStream, []);
+  const [roomVideoStreams, dispatchVideoStreams] = useReducer(addVideoStream, []);
 
   useEffect(() => {
     rssClient.askToConnect()
@@ -26,17 +26,17 @@ function App(props) {
 
   // Add Video Stream appends a peer's video stream data to the array of
   // video streams passed via props to the Grid component.
-  function addVideoStream(prevVideoStreams, newStream) {
+  function addVideoStream(prevRoomVideoStreams, newStream) {
     console.log('Adding new video stream to grid')
-    let newVideoStreams = [...prevVideoStreams, newStream];
-    return newVideoStreams;
+    let newRoomVideoStreams = [...prevRoomVideoStreams, newStream];
+    return newRoomVideoStreams;
   }
   
   // setupLocalMedia requests access to the user's microphone and webcam and
   // properly sets up the egress media stream.
   // NOTE: This will likely be called on load within the vestibule component.
   function setupLocalMediaUtil(cb, eb) {
-    if (videoStreams.length > 0 && videoStreams[0].stream != null) {
+    if (roomVideoStreams.length > 0 && roomVideoStreams[0].stream != null) {
       if (cb) cb();
       return
     }
@@ -55,7 +55,7 @@ function App(props) {
           'stream': stream,
           // NOTE: I may want to access a stream one day by peerId.
           // Use -1 to indicate local media stream.
-          'peerId': -1,
+          'peerId': myPeerId,
         }
         dispatchVideoStreams(addVideoData)
         if (cb) cb();
@@ -68,6 +68,9 @@ function App(props) {
   }
 
   function setupLocalMedia() {
+    let roomId = roomIdRef.current.value;
+    let userId = userIdRef.current.value;
+    myPeerId = roomId + "-" + userId;
     setupLocalMediaUtil(() => {
       console.log('Successfully setup local media')
     })
@@ -150,11 +153,11 @@ function App(props) {
         
         // To begin sending media data to the new peer, we must add the stream
         // on the peer connection.
-        if (videoStreams.length > 0) {
+        if (roomVideoStreams.length > 0) {
           // NOTE: It is currently guaranteed that the first videoStream is the
           // local media stream.
           console.log('Attaching local media stream onto peerId=%o\'s peer connection')
-          pc.addStream(videoStreams[0].stream);
+          pc.addStream(roomVideoStreams[0].stream);
         }
 
         // If offerer, create an offer to the existing RoomUser, and then
@@ -245,6 +248,10 @@ function App(props) {
     }) // End: joinMediaRoom.
   }
 
+  function leaveMediaRoom() {
+    
+  }
+
   return (
     <div className="App">
       <div className="header">
@@ -270,8 +277,11 @@ function App(props) {
       </div>
       <div className="grid-test">
         <Grid
-          videos={videoStreams}
+          videos={roomVideoStreams}
           />
+      </div>
+      <div className="leave-cntr">
+        <button className="roomz-btn button-primary" onClick={leaveMediaRoom}>LeaveMediaRoom</button>
       </div>
     </div>
 
