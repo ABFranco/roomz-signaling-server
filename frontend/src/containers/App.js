@@ -34,14 +34,15 @@ function App(props) {
         return newRoomVideoStreams;
       case 'RemoveStream':
         console.log('Removing video stream from grid')
-        for (let i = 0; i < prevRoomVideoStreams.length; i++) {
-          if (prevRoomVideoStreams[i].peerId == actionObject.removePeerId) {
+        let prevStreams = [...prevRoomVideoStreams];
+        for (let i = 0; i < prevStreams.length; i++) {
+          if (prevStreams[i].peerId == actionObject.removePeerId) {
             console.log('Removed video stream for peerId=%o', actionObject.removePeerId)
-            prevRoomVideoStreams.splice(i, 1)
+            prevStreams.splice(i, 1);
             break
           }
         }
-        return prevRoomVideoStreams;
+        return prevStreams;
       default:
         console.log('Incorrect action for addremoveVideoStream');
     }

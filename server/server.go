@@ -179,6 +179,7 @@ func (r *RoomzSignalingServer) relaySDPHandler(s socketio.Conn, data map[string]
 
 func (r *RoomzSignalingServer) leaveMediaRoomHandler(s socketio.Conn, data map[string]interface{}) {
   prefix := fmt.Sprintf("[%s]:", leaveMediaRoom)
+  log.Printf("%s data: %v\n", prefix, data)
   peerId, ok := data["peer_id"].(string)
   if !ok || len(peerId) == 0 {
     log.Printf("%s invalid peer_id.", prefix)
