@@ -9,12 +9,11 @@ function Grid(props) {
       </div>
       <div className="grid-container">
         {props.videos.map((v, index) => (
-          v.stream !== null ?
           <Video
             key={index}
             stream={v.stream}
             peerId={v.peerId}
-            /> : <div></div>
+            />
         ))}
       </div>
     </div>
