@@ -18,7 +18,7 @@ function App(props) {
   ];
   let roomyPcs = {};
   let myPeerId = "";
-  const [videoStreams, dispatchVideoStreams] = useReducer(addVideoStream, []);
+  const [roomVideoStreams, dispatchVideoStreams] = useReducer(addremoveVideoStream, []);
 
   useEffect(() => {
     rssClient.askToConnect()
@@ -26,17 +26,33 @@ function App(props) {
 
   // Add Video Stream appends a peer's video stream data to the array of
   // video streams passed via props to the Grid component.
-  function addVideoStream(prevVideoStreams, newStream) {
-    console.log('Adding new video stream to grid')
-    let newVideoStreams = [...prevVideoStreams, newStream];
-    return newVideoStreams;
+  function addremoveVideoStream(prevRoomVideoStreams, actionObject) {
+    switch(actionObject.action) {
+      case 'AddStream':
+        console.log('Adding new video stream to grid')
+        let newRoomVideoStreams = [...prevRoomVideoStreams, actionObject];
+        return newRoomVideoStreams;
+      case 'RemoveStream':
+        console.log('Removing video stream from grid')
+        let prevStreams = [...prevRoomVideoStreams];
+        for (let i = 0; i < prevStreams.length; i++) {
+          if (prevStreams[i].peerId == actionObject.removePeerId) {
+            console.log('Removed video stream for peerId=%o', actionObject.removePeerId)
+            prevStreams.splice(i, 1);
+            break
+          }
+        }
+        return prevStreams;
+      default:
+        console.log('Incorrect action for addremoveVideoStream');
+    }
   }
   
   // setupLocalMedia requests access to the user's microphone and webcam and
   // properly sets up the egress media stream.
   // NOTE: This will likely be called on load within the vestibule component.
   function setupLocalMediaUtil(cb, eb) {
-    if (videoStreams.length > 0 && videoStreams[0].stream != null) {
+    if (roomVideoStreams.length > 0 && roomVideoStreams[0].stream != null) {
       if (cb) cb();
       return
     }
@@ -47,15 +63,16 @@ function App(props) {
       navigator.msGetUserMedia);
     
     // TODO: Pass config to mute audio/video.
-    navigator.getUserMedia({"audio": true, "video": true},
+    navigator.getUserMedia({'audio': true, 'video': true},
       function(stream) {
         console.log('Granted access to audio/video')
         // Add local video stream to Grid.
         let addVideoData = {
+          'action': 'AddStream',
           'stream': stream,
           // NOTE: I may want to access a stream one day by peerId.
           // Use -1 to indicate local media stream.
-          'peerId': -1,
+          'peerId': myPeerId,
         }
         dispatchVideoStreams(addVideoData)
         if (cb) cb();
@@ -68,6 +85,9 @@ function App(props) {
   }
 
   function setupLocalMedia() {
+    let roomId = roomIdRef.current.value;
+    let userId = userIdRef.current.value;
+    myPeerId = roomId + "-" + userId;
     setupLocalMediaUtil(() => {
       console.log('Successfully setup local media')
     })
@@ -142,6 +162,7 @@ function App(props) {
           console.log(event)
           // TODO: muta audio/video.
           let addVideoData = {
+            'action': 'AddStream',
             'stream': event.stream,
             'peerId': peerId,
           }
@@ -150,11 +171,11 @@ function App(props) {
         
         // To begin sending media data to the new peer, we must add the stream
         // on the peer connection.
-        if (videoStreams.length > 0) {
+        if (roomVideoStreams.length > 0) {
           // NOTE: It is currently guaranteed that the first videoStream is the
           // local media stream.
           console.log('Attaching local media stream onto peerId=%o\'s peer connection')
-          pc.addStream(videoStreams[0].stream);
+          pc.addStream(roomVideoStreams[0].stream);
         }
 
         // If offerer, create an offer to the existing RoomUser, and then
@@ -241,8 +262,34 @@ function App(props) {
         pc.addIceCandidate(new RTCIceCandidate(iceCandidate))
       })
 
-      // TODO: handle peer left.
+      // The RFE Client must handle peers leaving the room, and delete the
+      // resources accordingly.
+      rssClient.awaitRemovePeer((data) => {
+        let peerId = data["peer_id"]
+        console.log('Removing peerId=%o from the media room', peerId)
+        if (peerId in roomyPcs) {
+          let removeStreamData = {
+            'action': 'RemoveStream',
+            'removePeerId': peerId,
+          }
+          dispatchVideoStreams(removeStreamData)
+          roomyPcs[peerId].close();
+        }
+        delete roomyPcs[peerId];
+      })
     }) // End: joinMediaRoom.
+  }
+
+  function leaveMediaRoom() {
+    let roomId = roomIdRef.current.value;
+    let userId = userIdRef.current.value;
+    myPeerId = roomId + "-" + userId;
+    let data = {
+      'peer_id': myPeerId,
+    }
+    rssClient.leaveMediaRoom(data, () => {
+      console.log("peerId=%o has requested to leave the room", myPeerId)
+    })
   }
 
   return (
@@ -270,8 +317,11 @@ function App(props) {
       </div>
       <div className="grid-test">
         <Grid
-          videos={videoStreams}
+          videos={roomVideoStreams}
           />
+      </div>
+      <div className="leave-cntr">
+        <button className="roomz-btn button-primary" onClick={leaveMediaRoom}>LeaveMediaRoom</button>
       </div>
     </div>
 
