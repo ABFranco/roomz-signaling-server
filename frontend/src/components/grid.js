@@ -13,6 +13,7 @@ function Grid(props) {
             key={index}
             stream={v.stream}
             peerId={v.peerId}
+            muted={v.muted}
             />
         ))}
       </div>

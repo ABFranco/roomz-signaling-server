@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useReducer } from 'react';
+import React, { useState, useEffect, useRef, useReducer } from 'react';
 import * as rssClient from '../api/RSSClient.js'
 import Grid from '../components/grid.js';
 import './App.css';
@@ -16,33 +16,104 @@ function App(props) {
   let ICE_SERVERS = [
     {urls:"stun:stun.l.google.com:19302"}
   ];
+  let DEFAULT_MEDIA_CONFIG = {
+    'muteAudio': false,
+    'muteVideo': false,
+  }
   let roomyPcs = {};
   let myPeerId = "";
-  const [roomVideoStreams, dispatchVideoStreams] = useReducer(addremoveVideoStream, []);
+  const [myLocalStream, setMyLocalStream] = useState(null);
+  const [roomVideoStreams, dispatchVideoStreams] = useReducer(editVideoStream, []);
 
   useEffect(() => {
     rssClient.askToConnect()
   })
 
+  // function editMediaConfig(prevMediaConfig, actionObject) {
+  //   switch (actionObject.action) {
+  //     case 'toggleAudio':
+  //       var newMediaConfig = prevMediaConfig;
+  //       newMediaConfig['muteAudio'] = !prevMediaConfig['muteAudio'];
+  //       if (roomVideoStreams.length > 0) {
+  //         console.log('Muting audio');
+  //         let muteAudioData = {
+  //           'action': 'ToggleAudioStream',
+  //           'muteAudio': newMediaConfig['muteAudio'],
+  //         }
+  //         editVideoStream(muteAudioData)
+  //       }
+  //       return newMediaConfig;
+
+  //     case 'toggleVideo':
+  //       var newMediaConfig = prevMediaConfig;
+  //       newMediaConfig['muteVideo'] = !prevMediaConfig['muteVideo'];
+  //       if (roomVideoStreams.length > 0) {
+  //         console.log('Muting video');
+  //         let muteVideoData = {
+  //           'action': 'ToggleVideoStream',
+  //           'stream': newMediaConfig['muteVideo'] ? null : myLocalMedia,
+  //         }
+  //         editVideoStream(muteVideoData);
+  //       }
+  //       return newMediaConfig;
+  //     default:
+  //       console.log('No correct action was chosen to edit the media config');
+  //   }
+  // }
+
+  function toggleAudio() {
+    let toggleAudioData = {
+      'action': 'ToggleAudioStream',
+    }
+    dispatchVideoStreams(toggleAudioData)
+  }
+
+  function toggleVideo() {
+    let toggleVideoData = {
+      'action': 'ToggleVideoStream',
+    }
+    dispatchVideoStreams(toggleVideoData)
+  }
+
   // Add Video Stream appends a peer's video stream data to the array of
   // video streams passed via props to the Grid component.
-  function addremoveVideoStream(prevRoomVideoStreams, actionObject) {
+  function editVideoStream(prevRoomVideoStreams, actionObject) {
+    console.log('editVideoStream, data=%o', actionObject)
     switch(actionObject.action) {
       case 'AddStream':
         console.log('Adding new video stream to grid')
-        let newRoomVideoStreams = [...prevRoomVideoStreams, actionObject];
+        var newRoomVideoStreams = [...prevRoomVideoStreams, actionObject];
         return newRoomVideoStreams;
+
       case 'RemoveStream':
         console.log('Removing video stream from grid')
-        let prevStreams = [...prevRoomVideoStreams];
-        for (let i = 0; i < prevStreams.length; i++) {
-          if (prevStreams[i].peerId == actionObject.removePeerId) {
+        var newRoomVideoStreams = [...prevRoomVideoStreams];
+        for (var i = 0; i < newRoomVideoStreams.length; i++) {
+          if (newRoomVideoStreams[i].peerId == actionObject.removePeerId) {
             console.log('Removed video stream for peerId=%o', actionObject.removePeerId)
-            prevStreams.splice(i, 1);
+            newRoomVideoStreams.splice(i, 1);
             break
           }
         }
-        return prevStreams;
+        return newRoomVideoStreams;
+
+      case 'ToggleAudioStream':
+        console.log('Muting local audio stream');
+        var newRoomVideoStreams = [...prevRoomVideoStreams];
+        if (newRoomVideoStreams.length > 0) {
+          newRoomVideoStreams[0].muted = !newRoomVideoStreams[0].muted;
+        }
+        return newRoomVideoStreams;
+
+      case 'ToggleVideoStream':
+        console.log('Muting local video stream');
+        var newRoomVideoStreams = [...prevRoomVideoStreams];
+        if (newRoomVideoStreams.length > 0) {
+          newRoomVideoStreams[0].stream = newRoomVideoStreams[0].stream !== null ? null : myLocalStream;
+        }
+        console.log('newRoomVideoStreams=%o', newRoomVideoStreams)
+        return newRoomVideoStreams;
+
       default:
         console.log('Incorrect action for addremoveVideoStream');
     }
@@ -73,7 +144,10 @@ function App(props) {
           // NOTE: I may want to access a stream one day by peerId.
           // Use -1 to indicate local media stream.
           'peerId': myPeerId,
+          // TODO: change mute is selected
+          'muted': false,
         }
+        setMyLocalStream(stream);
         dispatchVideoStreams(addVideoData)
         if (cb) cb();
       },
@@ -165,6 +239,7 @@ function App(props) {
             'action': 'AddStream',
             'stream': event.stream,
             'peerId': peerId,
+            'muted': false,
           }
           dispatchVideoStreams(addVideoData);
         }
@@ -311,6 +386,12 @@ function App(props) {
             <input id="user-id" ref={userIdRef} autoFocus/>
           </div>
         </form>
+        <div className="audio-cntr">
+            <button className="roomz-btn button-primary" onClick={toggleAudio}>Mute Audio</button>
+          </div>
+          <div className="video-cntr">
+            <button className="roomz-btn button-primary" onClick={toggleVideo}>Mute Video</button>
+          </div>
         <div className="user-actions">
           <button className="roomz-btn button-primary" onClick={joinMediaRoom}>JoinMediaRoom</button>
         </div>
