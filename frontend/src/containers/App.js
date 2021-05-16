@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useReducer } from 'react';
+import React, { useEffect, useRef, useReducer } from 'react';
 import * as rssClient from '../api/RSSClient.js'
 import Grid from '../components/grid.js';
 import './App.css';
@@ -16,14 +16,9 @@ function App(props) {
   let ICE_SERVERS = [
     {urls:"stun:stun.l.google.com:19302"}
   ];
-  let DEFAULT_MEDIA_CONFIG = {
-    'muteAudio': false,
-    'muteVideo': false,
-  }
   let roomyPcs = {};
   let myPeerId = "";
-  const [myLocalStream, setMyLocalStream] = useState(null);
-  const [roomVideoStreams, dispatchVideoStreams] = useReducer(editVideoStream, []);
+  const [roomVideoStreams, dispatchVideoStreams] = useReducer(editMediaStream, []);
 
   useEffect(() => {
     rssClient.askToConnect()
@@ -43,121 +38,77 @@ function App(props) {
     dispatchVideoStreams(toggleVideoData)
   }
 
-  function removeMediaTracks(stream, isAudio) {
-    let mediaTracks = null;
-    if (isAudio) {
-      mediaTracks = stream.getAudioTracks();
-    } else {
-      mediaTracks = stream.getVideoTracks();
-    }
-    for (var i = 0; i < mediaTracks.length; i++) {
-      stream.removeTrack(mediaTracks[i])
-    }
-  }
-
-  function addLocalMediaTracks(stream, isAudio) {
-    let localMediaTracks = null;
-    if (isAudio) {
-      localMediaTracks = myLocalStream.getAudioTracks();
-    } else {
-      localMediaTracks = myLocalStream.getVideoTracks();
-    }
-    for (var i = 0; i < localMediaTracks.length; i++) {
-      console.log('adding local media track=%o', localMediaTracks[i])
-      // stream.addTrack(localMediaTracks[i])
-      localMediaTracks[i].enabled = !localMediaTracks[i].enabled
-    }
-  }
-
+  // toggleMediaTrack enables or disables audio or video tracks on a media
+  // stream.
   function toggleMediaTracks(stream, isAudio) {
-    var localMediaTracks = null;
+    if (stream === null) {
+      console.log('Invalid video stream, cannot toggle media.')
+      return
+    }
+    var localMediaTracks = stream.getVideoTracks();
     var mediaType = 'video'
     if (isAudio) {
       mediaType = 'audio'
       localMediaTracks = stream.getAudioTracks();
-    } else {
-      localMediaTracks = stream.getVideoTracks();
     }
     if (localMediaTracks.length > 0) {
-      // Remove all media tracks from stream if currently active.
-      console.log('Removing %o tracks from local stream', mediaType)
+      // Disable or reanble tracks on local stream.
+      console.log('Toggling %o tracks from local stream', mediaType)
       for (var i = 0; i < localMediaTracks.length; i++) {
-        console.log('setting track enabled to=%o', !localMediaTracks[i].enabled)
+        console.log('Setting %o track enabled to=%o', mediaType, !localMediaTracks[i].enabled)
         localMediaTracks[i].enabled = !localMediaTracks[i].enabled
       }
-      //removeMediaTracks(stream, isAudio)
-      
     } else {
-      // Add media tracks to stream, retrieve from local stream.
-      console.log('Adding %o tracks from local stream', mediaType)
-      addLocalMediaTracks(stream, isAudio)
+      console.log('No registered %i tracks on stream!', mediaType)
     }
   }
 
   // Add Video Stream appends a peer's video stream data to the array of
   // video streams passed via props to the Grid component.
-  function editVideoStream(prevRoomVideoStreams, actionObject) {
-    console.log('editVideoStream, data=%o', actionObject)
+  function editMediaStream(prevRoomMediaStreams, actionObject) {
+    console.log('editMediaStream, data=%o', actionObject)
+    let newRoomMediaStreams = null;
     switch(actionObject.action) {
       case 'AddStream':
-        console.log('Adding new video stream to grid')
-        var newRoomVideoStreams = [...prevRoomVideoStreams, actionObject];
-        return newRoomVideoStreams;
+        console.log('Adding new media stream to grid')
+        newRoomMediaStreams = [...prevRoomMediaStreams, actionObject];
+        return newRoomMediaStreams;
 
       case 'RemoveStream':
-        console.log('Removing video stream from grid')
-        var newRoomVideoStreams = [...prevRoomVideoStreams];
-        for (var i = 0; i < newRoomVideoStreams.length; i++) {
-          if (newRoomVideoStreams[i].peerId == actionObject.removePeerId) {
-            console.log('Removed video stream for peerId=%o', actionObject.removePeerId)
-            newRoomVideoStreams.splice(i, 1);
+        console.log('Removing media stream from grid')
+        newRoomMediaStreams = [...prevRoomMediaStreams];
+        for (var i = 0; i < newRoomMediaStreams.length; i++) {
+          if (newRoomMediaStreams[i].peerId === actionObject.removePeerId) {
+            console.log('Removed media stream for peerId=%o', actionObject.removePeerId)
+            newRoomMediaStreams.splice(i, 1);
             break
           }
         }
-        return newRoomVideoStreams;
+        return newRoomMediaStreams;
 
       case 'ToggleAudioStream':
-        console.log('Muting local audio stream');
-        var newRoomVideoStreams = [...prevRoomVideoStreams];
-        if (newRoomVideoStreams.length > 0) {
+        console.log('Toggling mute auto on local stream');
+        newRoomMediaStreams = [...prevRoomMediaStreams];
+        if (newRoomMediaStreams.length > 0) {
           // Toggle mute on local video div.
-          newRoomVideoStreams[0].muted = !newRoomVideoStreams[0].muted;
-          // // Also toggle audio tracks on outgoing local stream.
-          // var localAudioTracks = newRoomVideoStreams[0].stream.getAudioTracks();
-          // if (localAudioTracks.length > 0) {
-          //   // Remove all audio tracks from stream if currently active.
-          //   console.log('Removing audio tracks from local stream')
-          //   removeVideoTracks(newRoomVideoStreams[0].stream)
-          // } else {
-          //   // Add audio tracks to stream, retrieve from local stream.
-          //   console.log('Adding audio tracks from local stream')
-          //   addLocalVideoTracks(newRoomVideoStreams[0].stream)
-          // }
-          toggleMediaTracks(newRoomVideoStreams[0].stream, true)
+          newRoomMediaStreams[0].muted = !newRoomMediaStreams[0].muted;
+          // Also toggle audio tracks on outgoing local stream.
+          toggleMediaTracks(newRoomMediaStreams[0].stream, true)
         }
-        return newRoomVideoStreams;
+        return newRoomMediaStreams;
 
       case 'ToggleVideoStream':
-        console.log('Muting local video stream');
-        var newRoomVideoStreams = [...prevRoomVideoStreams];
-        if (newRoomVideoStreams.length > 0) {
-          // var localVideoTracks = newRoomVideoStreams[0].stream.getVideoTracks();
-          // if (localVideoTracks.length > 0) {
-          //   // Remove all video tracks from stream if currently active.
-          //   console.log('Removing video tracks from local stream')
-          //   removeVideoTracks(newRoomVideoStreams[0].stream)
-          // } else {
-          //   // Add video tracks to stream, retrieve from local stream.
-          //   console.log('Adding video tracks from local stream')
-          //   addLocalVideoTracks(newRoomVideoStreams[0].stream)
-          // }
-          toggleMediaTracks(newRoomVideoStreams[0].stream, false)
+        console.log('Toggling mute video on local stream');
+        newRoomMediaStreams = [...prevRoomMediaStreams];
+        if (newRoomMediaStreams.length > 0) {
+          // Toggle video tracks on local stream.
+          toggleMediaTracks(newRoomMediaStreams[0].stream, false)
         }
-        console.log('newRoomVideoStreams=%o', newRoomVideoStreams)
-        return newRoomVideoStreams;
+        console.log('newRoomVideoStreams=%o', newRoomMediaStreams)
+        return newRoomMediaStreams;
 
       default:
-        console.log('Incorrect action for addremoveVideoStream');
+        console.log('Incorrect action for editMediaStream');
     }
   }
   
@@ -186,7 +137,6 @@ function App(props) {
           'peerId': myPeerId,
           'muted': false,
         }
-        setMyLocalStream(stream.clone());
         dispatchVideoStreams(addVideoData)
         if (cb) cb();
       },

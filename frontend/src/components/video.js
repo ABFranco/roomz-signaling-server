@@ -1,9 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect } from 'react';
 
 function Video(props) {
-  const [audioMuted, setAudioMuted] = useState(false);
-  const [videoMuted, setVideoMuted] = useState(false);
-  const [localStream, setLocalStream] = useState(null);
   const mediaRef = useRef();
 
   useEffect(() => {
