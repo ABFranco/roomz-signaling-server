@@ -45,14 +45,14 @@ function App(props) {
       console.log('Invalid video stream, cannot toggle media.')
       return
     }
-    var localMediaTracks = stream.getVideoTracks();
-    var mediaType = 'video'
+    let localMediaTracks = stream.getVideoTracks();
+    let mediaType = 'video'
     if (isAudio) {
       mediaType = 'audio'
       localMediaTracks = stream.getAudioTracks();
     }
     if (localMediaTracks.length > 0) {
-      // Disable or reanble tracks on local stream.
+      // Disable or re-enable tracks on local stream.
       console.log('Toggling %o tracks from local stream', mediaType)
       for (var i = 0; i < localMediaTracks.length; i++) {
         console.log('Setting %o track enabled to=%o', mediaType, !localMediaTracks[i].enabled)
