@@ -29,38 +29,6 @@ function App(props) {
     rssClient.askToConnect()
   })
 
-  // function editMediaConfig(prevMediaConfig, actionObject) {
-  //   switch (actionObject.action) {
-  //     case 'toggleAudio':
-  //       var newMediaConfig = prevMediaConfig;
-  //       newMediaConfig['muteAudio'] = !prevMediaConfig['muteAudio'];
-  //       if (roomVideoStreams.length > 0) {
-  //         console.log('Muting audio');
-  //         let muteAudioData = {
-  //           'action': 'ToggleAudioStream',
-  //           'muteAudio': newMediaConfig['muteAudio'],
-  //         }
-  //         editVideoStream(muteAudioData)
-  //       }
-  //       return newMediaConfig;
-
-  //     case 'toggleVideo':
-  //       var newMediaConfig = prevMediaConfig;
-  //       newMediaConfig['muteVideo'] = !prevMediaConfig['muteVideo'];
-  //       if (roomVideoStreams.length > 0) {
-  //         console.log('Muting video');
-  //         let muteVideoData = {
-  //           'action': 'ToggleVideoStream',
-  //           'stream': newMediaConfig['muteVideo'] ? null : myLocalMedia,
-  //         }
-  //         editVideoStream(muteVideoData);
-  //       }
-  //       return newMediaConfig;
-  //     default:
-  //       console.log('No correct action was chosen to edit the media config');
-  //   }
-  // }
-
   function toggleAudio() {
     let toggleAudioData = {
       'action': 'ToggleAudioStream',
@@ -108,8 +76,24 @@ function App(props) {
       case 'ToggleVideoStream':
         console.log('Muting local video stream');
         var newRoomVideoStreams = [...prevRoomVideoStreams];
+        console.log('prev streams=%o', prevRoomVideoStreams)
         if (newRoomVideoStreams.length > 0) {
-          newRoomVideoStreams[0].stream = newRoomVideoStreams[0].stream !== null ? null : myLocalStream;
+          var localVideoTracks = newRoomVideoStreams[0].stream.getVideoTracks();
+          if (localVideoTracks.length > 0) {
+            // Remove all video tracks from stream if currently active.
+            for (var i = 0; i < localVideoTracks.length; i++) {
+              console.log('remove video track=%o', localVideoTracks[i])
+              newRoomVideoStreams[0].stream.removeTrack(localVideoTracks[i])
+            }
+          } else {
+            console.log('hello')
+            // Add video tracks to stream, retrieve from local stream.
+            localVideoTracks = myLocalStream.getVideoTracks();
+            for (var i = 0; i < localVideoTracks.length; i++) {
+              console.log('adding new video track=%o', localVideoTracks[i])
+              newRoomVideoStreams[0].stream.addTrack(localVideoTracks[i])
+            }
+          }
         }
         console.log('newRoomVideoStreams=%o', newRoomVideoStreams)
         return newRoomVideoStreams;
@@ -141,13 +125,10 @@ function App(props) {
         let addVideoData = {
           'action': 'AddStream',
           'stream': stream,
-          // NOTE: I may want to access a stream one day by peerId.
-          // Use -1 to indicate local media stream.
           'peerId': myPeerId,
-          // TODO: change mute is selected
           'muted': false,
         }
-        setMyLocalStream(stream);
+        setMyLocalStream(stream.clone());
         dispatchVideoStreams(addVideoData)
         if (cb) cb();
       },
