@@ -263,6 +263,11 @@ function App(props) {
           }
         }
 
+        pc.onaddtrack = function (event) {
+          console.log('New onaddtrack for peerId=%o', peerId)
+          console.log(event)
+        }
+
         // Await incoming media stream events on the peer connection.
         pc.onaddstream = function(event) {
           console.log('Incoming stream for peerId=%o', peerId)
