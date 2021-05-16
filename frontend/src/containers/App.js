@@ -18,7 +18,7 @@ function App(props) {
   ];
   let roomyPcs = {};
   let myPeerId = "";
-  const [roomVideoStreams, dispatchVideoStreams] = useReducer(editMediaStream, []);
+  const [roomMediaStreams, dispatchMediaStreams] = useReducer(editMediaStream, []);
 
   useEffect(() => {
     rssClient.askToConnect()
@@ -28,14 +28,14 @@ function App(props) {
     let toggleAudioData = {
       'action': 'ToggleAudioStream',
     }
-    dispatchVideoStreams(toggleAudioData)
+    dispatchMediaStreams(toggleAudioData)
   }
 
   function toggleVideo() {
     let toggleVideoData = {
       'action': 'ToggleVideoStream',
     }
-    dispatchVideoStreams(toggleVideoData)
+    dispatchMediaStreams(toggleVideoData)
   }
 
   // toggleMediaTrack enables or disables audio or video tracks on a media
@@ -104,7 +104,7 @@ function App(props) {
           // Toggle video tracks on local stream.
           toggleMediaTracks(newRoomMediaStreams[0].stream, false)
         }
-        console.log('newRoomVideoStreams=%o', newRoomMediaStreams)
+        console.log('newRoomMediaStreams=%o', newRoomMediaStreams)
         return newRoomMediaStreams;
 
       default:
@@ -116,7 +116,7 @@ function App(props) {
   // properly sets up the egress media stream.
   // NOTE: This will likely be called on load within the vestibule component.
   function setupLocalMediaUtil(cb, eb) {
-    if (roomVideoStreams.length > 0 && roomVideoStreams[0].stream != null) {
+    if (roomMediaStreams.length > 0 && roomMediaStreams[0].stream != null) {
       if (cb) cb();
       return
     }
@@ -137,7 +137,7 @@ function App(props) {
           'peerId': myPeerId,
           'muted': false,
         }
-        dispatchVideoStreams(addVideoData)
+        dispatchMediaStreams(addVideoData)
         if (cb) cb();
       },
       function() {
@@ -235,16 +235,16 @@ function App(props) {
             'peerId': peerId,
             'muted': false,
           }
-          dispatchVideoStreams(addVideoData);
+          dispatchMediaStreams(addVideoData);
         }
         
         // To begin sending media data to the new peer, we must add the stream
         // on the peer connection.
-        if (roomVideoStreams.length > 0) {
-          // NOTE: It is currently guaranteed that the first videoStream is the
+        if (roomMediaStreams.length > 0) {
+          // NOTE: It is currently guaranteed that the first mediaStream is the
           // local media stream.
           console.log('Attaching local media stream onto peerId=%o\'s peer connection')
-          pc.addStream(roomVideoStreams[0].stream);
+          pc.addStream(roomMediaStreams[0].stream);
         }
 
         // If offerer, create an offer to the existing RoomUser, and then
@@ -341,7 +341,7 @@ function App(props) {
             'action': 'RemoveStream',
             'removePeerId': peerId,
           }
-          dispatchVideoStreams(removeStreamData)
+          dispatchMediaStreams(removeStreamData)
           roomyPcs[peerId].close();
         }
         delete roomyPcs[peerId];
@@ -392,7 +392,7 @@ function App(props) {
       </div>
       <div className="grid-test">
         <Grid
-          videos={roomVideoStreams}
+          videos={roomMediaStreams}
           />
       </div>
       <div className="leave-cntr">

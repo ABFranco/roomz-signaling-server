@@ -8,11 +8,6 @@ function Video(props) {
     mediaRef.current.srcObject = props.stream;
   }, [props.stream])
 
-  useEffect(() => {
-    console.log('[Video]: new muted=%o', props.muted)
-  }, [props.muted])
-
-
   return (
     <div className="video" id={props.peerId}>
       <video ref={mediaRef} id="egress-video" autoPlay controls muted={props.muted}/>
