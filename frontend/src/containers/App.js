@@ -64,7 +64,8 @@ function App(props) {
     }
     for (var i = 0; i < localMediaTracks.length; i++) {
       console.log('adding local media track=%o', localMediaTracks[i])
-      stream.addTrack(localMediaTracks[i])
+      // stream.addTrack(localMediaTracks[i])
+      localMediaTracks[i].enabled = !localMediaTracks[i].enabled
     }
   }
 
@@ -80,7 +81,12 @@ function App(props) {
     if (localMediaTracks.length > 0) {
       // Remove all media tracks from stream if currently active.
       console.log('Removing %o tracks from local stream', mediaType)
-      removeMediaTracks(stream, isAudio)
+      for (var i = 0; i < localMediaTracks.length; i++) {
+        console.log('setting track enabled to=%o', !localMediaTracks[i].enabled)
+        localMediaTracks[i].enabled = !localMediaTracks[i].enabled
+      }
+      //removeMediaTracks(stream, isAudio)
+      
     } else {
       // Add media tracks to stream, retrieve from local stream.
       console.log('Adding %o tracks from local stream', mediaType)
