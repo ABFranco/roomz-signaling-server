@@ -73,26 +73,18 @@ func (r *RoomzSignalingServer) disconnectHandler(s socketio.Conn, msg string) {
 func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[string]interface{}) {
   prefix := fmt.Sprintf("[%s]:", joinMediaRoom)
   log.Printf("%s data: %v\n", prefix, data)
-  roomIdStr, ok := data["room_id"].(string);
-  if !ok || len(roomIdStr) == 0 {
-    log.Printf("%s invalid room id.", prefix)
+  roomIdF64, ok := data["room_id"].(float64)
+  if !ok {
+    log.Printf("%s room_id is not a valid float64.", prefix)
     return
   }
-  roomId, err := strconv.ParseInt(roomIdStr, 10, 64)
-  if err != nil {
-    log.Printf("%s room_id is not an int64.", prefix)
+  roomId := int64(roomIdF64)
+  userIdF64, ok := data["user_id"].(float64);
+  if !ok {
+    log.Printf("%s user_id is not a valid float64.", prefix)
     return
   }
-  userIdStr, ok := data["user_id"].(string);
-  if !ok || len(userIdStr) == 0 {
-    log.Printf("%s invalid user_id.", prefix)
-    return
-  }
-  userId, err := strconv.ParseInt(userIdStr, 10, 64)
-  if err != nil {
-    log.Printf("%s user_id is not an int.", prefix)
-    return
-  }
+  userId := int64(userIdF64)
   // TODO: add check if person already exists in room.
   peerId := fmt.Sprintf("%v-%v", roomId, userId)
   r.roomUsersMtx.Lock()

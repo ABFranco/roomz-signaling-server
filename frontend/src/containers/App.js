@@ -381,11 +381,11 @@ function App(props) {
           </div>
         </form>
         <div className="audio-cntr">
-            <button className="roomz-btn button-primary" onClick={toggleAudio}>Mute Audio</button>
-          </div>
-          <div className="video-cntr">
-            <button className="roomz-btn button-primary" onClick={toggleVideo}>Mute Video</button>
-          </div>
+          <button className="roomz-btn button-primary" onClick={toggleAudio}>Mute Audio</button>
+        </div>
+        <div className="video-cntr">
+          <button className="roomz-btn button-primary" onClick={toggleVideo}>Mute Video</button>
+        </div>
         <div className="user-actions">
           <button className="roomz-btn button-primary" onClick={joinMediaRoom}>JoinMediaRoom</button>
         </div>
