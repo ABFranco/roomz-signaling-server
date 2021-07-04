@@ -13,3 +13,4 @@ events.
 We wish to adopt the RSS to a gRPC backend, instead of using socket.io. gRPC is
 better for a potential larger Roomz microservice architecture. Socket.io was
 chosen due to development speed.
+
