@@ -33,7 +33,6 @@ const (
   relayICECandidate = "RelayICECandidate"
   relaySDP = "RelaySDP"
   leaveMediaRoom = "LeaveMediaRoom"
-  updateSessionId = "UpdateSessionId"
 
   // Outgoing socket.io events for the RFE to handle.
   addPeer = "AddPeer"
@@ -62,7 +61,6 @@ func (r *RoomzSignalingServer) registerRoutes() {
   r.Server.OnEvent("/", relayICECandidate, r.relayICECandidateHandler)
   r.Server.OnEvent("/", relaySDP, r.relaySDPHandler)
   r.Server.OnEvent("/", leaveMediaRoom, r.leaveMediaRoomHandler)
-  r.Server.OnEvent("/", updateSessionId, r.updateSessionIdHandler)
 }
 
 func (r *RoomzSignalingServer) connectHandler(s socketio.Conn) error {
@@ -222,36 +220,6 @@ func (r *RoomzSignalingServer) leaveMediaRoom(s socketio.Conn, prefix, peerId st
   if delIdx >= 0 {
     log.Printf("%s Removed peerId=%s from roomId=%d", prefix, peerId, roomId)
     r.roomUsers[roomId] = append(r.roomUsers[roomId][:delIdx], r.roomUsers[roomId][delIdx+1:]...)
-  }
-  r.roomUsersMtx.Unlock()
-}
-
-// TODO: does the user need to rejoin the room?
-func (r *RoomzSignalingServer) updateSessionIdHandler(s socketio.Conn, data map[string]interface{}) {
-  prefix := fmt.Sprintf("[%s]:", updateSessionId)
-  log.Printf("%s data: %v\n", prefix, data)
-  peerId, ok := data["peer_id"].(string)
-  if !ok || len(peerId) == 0 {
-    log.Printf("%s invalid peer_id.", prefix)
-    return
-  }
-  roomIdStr := strings.Split(peerId, "-")[0]
-  roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
-  log.Printf("hello: %s %s", peerId, r.roomUsers[roomId])
-  // Retrieve old sessionId, update mapping of sessionId to peerId.
-  r.roomUsersMtx.Lock()
-  for _, roomUser := range r.roomUsers[roomId] {
-    log.Printf("searching through roomUser %s", roomUser.peerId)
-    if peerId == roomUser.peerId {
-      oldSessionId := roomUser.sId
-      roomUser.sId = s.ID()
-      r.peerIdsMtx.Lock()
-      delete(r.peerIds, oldSessionId)
-      r.peerIds[s.ID()] = peerId
-      r.peerIdsMtx.Unlock()
-      log.Printf("%s Update peerId=%s's session ID to=%s", prefix, peerId, roomUser.sId)
-      break
-    }
   }
   r.roomUsersMtx.Unlock()
 }
