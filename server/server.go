@@ -20,8 +20,11 @@ type RoomzSignalingServer struct {
   Server    *socketio.Server
   // Map of Room ID -> Slice of RoomUsers.
   roomUsers map[int64][]RoomUser
+  // Map of Session ID -> PeerID.
+  peerIds map[string]string
   // NOTE: Locks are needed as the event handlers have shared resources.
   roomUsersMtx *sync.Mutex
+  peerIdsMtx *sync.Mutex
 }
 
 const (
@@ -30,6 +33,7 @@ const (
   relayICECandidate = "RelayICECandidate"
   relaySDP = "RelaySDP"
   leaveMediaRoom = "LeaveMediaRoom"
+  updateSessionId = "UpdateSessionId"
 
   // Outgoing socket.io events for the RFE to handle.
   addPeer = "AddPeer"
@@ -43,7 +47,9 @@ func New() *RoomzSignalingServer {
   rms := &RoomzSignalingServer{
     Server: server,
     roomUsers: make(map[int64][]RoomUser),
+    peerIds: make(map[string]string),
     roomUsersMtx: &sync.Mutex{},
+    peerIdsMtx: &sync.Mutex{},
   }
   rms.registerRoutes()
   return rms
@@ -56,6 +62,7 @@ func (r *RoomzSignalingServer) registerRoutes() {
   r.Server.OnEvent("/", relayICECandidate, r.relayICECandidateHandler)
   r.Server.OnEvent("/", relaySDP, r.relaySDPHandler)
   r.Server.OnEvent("/", leaveMediaRoom, r.leaveMediaRoomHandler)
+  r.Server.OnEvent("/", updateSessionId, r.updateSessionIdHandler)
 }
 
 func (r *RoomzSignalingServer) connectHandler(s socketio.Conn) error {
@@ -66,6 +73,7 @@ func (r *RoomzSignalingServer) connectHandler(s socketio.Conn) error {
 
 func (r *RoomzSignalingServer) disconnectHandler(s socketio.Conn, msg string) {
   log.Println("User:", s.ID(), "disconnected...");
+  log.Printf("PeerId=%s disconnected...", r.peerIds[s.ID()])
   // TODO: if user disconnects, remove them from their room. This will involve
   // ensuring the socket ID's are getting updated on every refresh.
 }
@@ -109,6 +117,10 @@ func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[st
     peerId: peerId,
   })
   r.roomUsersMtx.Unlock()
+  r.peerIdsMtx.Lock()
+  r.peerIds[s.ID()] = peerId
+  r.peerIdsMtx.Unlock()
+  log.Printf("%s userId=%d has joined roomId=%d", prefix, userId, roomId)
 }
 
 func (r *RoomzSignalingServer) relayICECandidateHandler(s socketio.Conn, data map[string]interface{}) {
@@ -175,9 +187,14 @@ func (r *RoomzSignalingServer) leaveMediaRoomHandler(s socketio.Conn, data map[s
   peerId, ok := data["peer_id"].(string)
   if !ok || len(peerId) == 0 {
     log.Printf("%s invalid peer_id.", prefix)
+    return
   }
   roomIdStr := strings.Split(peerId, "-")[0]
   roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
+  r.leaveMediaRoom(s, prefix, peerId, roomId)
+}
+
+func (r *RoomzSignalingServer) leaveMediaRoom(s socketio.Conn, prefix, peerId string, roomId int64) {
   delIdx := -1
   r.roomUsersMtx.Lock()
   for i, roomUser := range r.roomUsers[roomId] {
@@ -195,8 +212,38 @@ func (r *RoomzSignalingServer) leaveMediaRoomHandler(s socketio.Conn, data map[s
     }
   }
   if delIdx >= 0 {
-    log.Printf("Removed peerId=%s from roomId=%d", peerId, roomId)
+    log.Printf("%s Removed peerId=%s from roomId=%d", prefix, peerId, roomId)
     r.roomUsers[roomId] = append(r.roomUsers[roomId][:delIdx], r.roomUsers[roomId][delIdx+1:]...)
+  }
+  r.roomUsersMtx.Unlock()
+}
+
+// TODO: does the user need to rejoin the room?
+func (r *RoomzSignalingServer) updateSessionIdHandler(s socketio.Conn, data map[string]interface{}) {
+  prefix := fmt.Sprintf("[%s]:", updateSessionId)
+  log.Printf("%s data: %v\n", prefix, data)
+  peerId, ok := data["peer_id"].(string)
+  if !ok || len(peerId) == 0 {
+    log.Printf("%s invalid peer_id.", prefix)
+    return
+  }
+  roomIdStr := strings.Split(peerId, "-")[0]
+  roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
+  log.Printf("hello: %s %s", peerId, r.roomUsers[roomId])
+  // Retrieve old sessionId, update mapping of sessionId to peerId.
+  r.roomUsersMtx.Lock()
+  for _, roomUser := range r.roomUsers[roomId] {
+    log.Printf("searching through roomUser %s", roomUser.peerId)
+    if peerId == roomUser.peerId {
+      oldSessionId := roomUser.sId
+      roomUser.sId = s.ID()
+      r.peerIdsMtx.Lock()
+      delete(r.peerIds, oldSessionId)
+      r.peerIds[s.ID()] = peerId
+      r.peerIdsMtx.Unlock()
+      log.Printf("%s Update peerId=%s's session ID to=%s", prefix, peerId, roomUser.sId)
+      break
+    }
   }
   r.roomUsersMtx.Unlock()
 }
