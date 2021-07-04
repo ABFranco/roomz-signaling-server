@@ -72,10 +72,13 @@ func (r *RoomzSignalingServer) connectHandler(s socketio.Conn) error {
 }
 
 func (r *RoomzSignalingServer) disconnectHandler(s socketio.Conn, msg string) {
-  log.Println("User:", s.ID(), "disconnected...");
-  log.Printf("PeerId=%s disconnected...", r.peerIds[s.ID()])
-  // TODO: if user disconnects, remove them from their room. This will involve
-  // ensuring the socket ID's are getting updated on every refresh.
+  log.Printf("Session ID: %s has disconnected...", s.ID())
+  // If this session ID matches a user in a media room, remove them from room.
+  if peerId, ok := r.peerIds[s.ID()]; ok {
+    roomIdStr := strings.Split(peerId, "-")[0]
+    roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
+    r.leaveMediaRoom(s, "Disconnect", peerId, roomId)
+  }
 }
 
 func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[string]interface{}) {
@@ -93,24 +96,29 @@ func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[st
     return
   }
   userId := int64(userIdF64)
-  // TODO: add check if person already exists in room.
   peerId := fmt.Sprintf("%v-%v", roomId, userId)
   r.roomUsersMtx.Lock()
   for _, roomUser := range r.roomUsers[roomId] {
-    // Existing roomies get an addPeer notification where they do not have to
-    // make an offer.
-    log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, addPeer, peerId, roomUser.peerId)
-    r.Server.BroadcastToRoom("/", roomUser.sId, addPeer, map[string]interface{}{
-      "peer_id":    peerId,
-      "is_offerer": false,
-    })
-    // The new roomie gets an addPeer notification but they must create an
-    // offer with the existing roomie.
-    log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, addPeer, roomUser.peerId, peerId)
-    s.Emit(addPeer, map[string]interface{}{
-      "peer_id":    roomUser.peerId,
-      "is_offerer": true,
-    }, s.ID())
+    if roomUser.peerId == peerId {
+      // User is rejoining the media room, update its session id.
+      roomUser.sId = s.ID()
+      log.Printf("%s %s has re-joined the media room, updated session ID to %s", prefix, peerId, s.ID())
+    } else {
+      // Existing roomies get an addPeer notification where they do not have to
+      // make an offer.
+      log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, addPeer, peerId, roomUser.peerId)
+      r.Server.BroadcastToRoom("/", roomUser.sId, addPeer, map[string]interface{}{
+        "peer_id":    peerId,
+        "is_offerer": false,
+      })
+      // The new roomie gets an addPeer notification but they must create an
+      // offer with the existing roomie.
+      log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, addPeer, roomUser.peerId, peerId)
+      s.Emit(addPeer, map[string]interface{}{
+        "peer_id":    roomUser.peerId,
+        "is_offerer": true,
+      }, s.ID())
+    }
   }
   r.roomUsers[roomId] = append(r.roomUsers[roomId], RoomUser{
     sId:    s.ID(),
