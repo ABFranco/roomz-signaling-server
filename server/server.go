@@ -195,9 +195,30 @@ func (r *RoomzSignalingServer) leaveMediaRoomHandler(s socketio.Conn, data map[s
     log.Printf("%s invalid peer_id.", prefix)
     return
   }
+  closeRoom, ok := data["close_room"].(bool)
+  if !ok {
+    log.Printf("%s invalid close_room type.", prefix)
+    return
+  }
   roomIdStr := strings.Split(peerId, "-")[0]
   roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
-  r.leaveMediaRoom(s, prefix, peerId, roomId)
+  if !closeRoom {
+    r.leaveMediaRoom(s, prefix, peerId, roomId)
+  } else {
+    // Closing a Room is performed by the Room host via the RAS. All RoomUsers
+    // are redirected back to the RFE home page, and media state is cleared.
+    // On the RSS side, we need to just perform a simple cleanup of media
+    // RoomUsers and PeerIds.
+    r.roomUsersMtx.Lock()
+    r.peerIdsMtx.Lock()
+    for _, roomUser := range r.roomUsers[roomId] {
+      delete(r.peerIds, roomUser.sId)
+    }
+    r.peerIdsMtx.Unlock()
+    delete(r.roomUsers, roomId)
+    r.roomUsersMtx.Unlock()
+    log.Printf("%s Closed media roomId=%v", prefix, roomId)
+  }
 }
 
 func (r *RoomzSignalingServer) leaveMediaRoom(s socketio.Conn, prefix, peerId string, roomId int64) {
@@ -206,6 +227,9 @@ func (r *RoomzSignalingServer) leaveMediaRoom(s socketio.Conn, prefix, peerId st
   for i, roomUser := range r.roomUsers[roomId] {
     if peerId == roomUser.peerId {
       delIdx = i
+      r.peerIdsMtx.Lock()
+      delete(r.peerIds, roomUser.sId)
+      r.peerIdsMtx.Unlock()
     } else {
       log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, removePeer, peerId, roomUser.peerId)
       r.Server.BroadcastToRoom("/", roomUser.sId, removePeer, map[string]interface{}{
