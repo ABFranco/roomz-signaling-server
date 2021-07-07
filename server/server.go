@@ -20,8 +20,11 @@ type RoomzSignalingServer struct {
   Server    *socketio.Server
   // Map of Room ID -> Slice of RoomUsers.
   roomUsers map[int64][]RoomUser
+  // Map of Session ID -> PeerID.
+  peerIds map[string]string
   // NOTE: Locks are needed as the event handlers have shared resources.
   roomUsersMtx *sync.Mutex
+  peerIdsMtx *sync.Mutex
 }
 
 const (
@@ -43,7 +46,9 @@ func New() *RoomzSignalingServer {
   rms := &RoomzSignalingServer{
     Server: server,
     roomUsers: make(map[int64][]RoomUser),
+    peerIds: make(map[string]string),
     roomUsersMtx: &sync.Mutex{},
+    peerIdsMtx: &sync.Mutex{},
   }
   rms.registerRoutes()
   return rms
@@ -65,9 +70,13 @@ func (r *RoomzSignalingServer) connectHandler(s socketio.Conn) error {
 }
 
 func (r *RoomzSignalingServer) disconnectHandler(s socketio.Conn, msg string) {
-  log.Println("User:", s.ID(), "disconnected...");
-  // TODO: if user disconnects, remove them from their room. This will involve
-  // ensuring the socket ID's are getting updated on every refresh.
+  log.Printf("Session ID: %s has disconnected...", s.ID())
+  // If this session ID matches a user in a media room, remove them from room.
+  if peerId, ok := r.peerIds[s.ID()]; ok {
+    roomIdStr := strings.Split(peerId, "-")[0]
+    roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
+    r.leaveMediaRoom(s, "Disconnect", peerId, roomId)
+  }
 }
 
 func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[string]interface{}) {
@@ -85,30 +94,39 @@ func (r *RoomzSignalingServer) joinMediaRoomHandler(s socketio.Conn, data map[st
     return
   }
   userId := int64(userIdF64)
-  // TODO: add check if person already exists in room.
   peerId := fmt.Sprintf("%v-%v", roomId, userId)
   r.roomUsersMtx.Lock()
   for _, roomUser := range r.roomUsers[roomId] {
-    // Existing roomies get an addPeer notification where they do not have to
-    // make an offer.
-    log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, addPeer, peerId, roomUser.peerId)
-    r.Server.BroadcastToRoom("/", roomUser.sId, addPeer, map[string]interface{}{
-      "peer_id":    peerId,
-      "is_offerer": false,
-    })
-    // The new roomie gets an addPeer notification but they must create an
-    // offer with the existing roomie.
-    log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, addPeer, roomUser.peerId, peerId)
-    s.Emit(addPeer, map[string]interface{}{
-      "peer_id":    roomUser.peerId,
-      "is_offerer": true,
-    }, s.ID())
+    if roomUser.peerId == peerId {
+      // User is rejoining the media room, update its session id.
+      roomUser.sId = s.ID()
+      log.Printf("%s %s has re-joined the media room, updated session ID to %s", prefix, peerId, s.ID())
+    } else {
+      // Existing roomies get an addPeer notification where they do not have to
+      // make an offer.
+      log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, addPeer, peerId, roomUser.peerId)
+      r.Server.BroadcastToRoom("/", roomUser.sId, addPeer, map[string]interface{}{
+        "peer_id":    peerId,
+        "is_offerer": false,
+      })
+      // The new roomie gets an addPeer notification but they must create an
+      // offer with the existing roomie.
+      log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, addPeer, roomUser.peerId, peerId)
+      s.Emit(addPeer, map[string]interface{}{
+        "peer_id":    roomUser.peerId,
+        "is_offerer": true,
+      }, s.ID())
+    }
   }
   r.roomUsers[roomId] = append(r.roomUsers[roomId], RoomUser{
     sId:    s.ID(),
     peerId: peerId,
   })
   r.roomUsersMtx.Unlock()
+  r.peerIdsMtx.Lock()
+  r.peerIds[s.ID()] = peerId
+  r.peerIdsMtx.Unlock()
+  log.Printf("%s userId=%d has joined roomId=%d", prefix, userId, roomId)
 }
 
 func (r *RoomzSignalingServer) relayICECandidateHandler(s socketio.Conn, data map[string]interface{}) {
@@ -175,14 +193,43 @@ func (r *RoomzSignalingServer) leaveMediaRoomHandler(s socketio.Conn, data map[s
   peerId, ok := data["peer_id"].(string)
   if !ok || len(peerId) == 0 {
     log.Printf("%s invalid peer_id.", prefix)
+    return
+  }
+  closeRoom, ok := data["close_room"].(bool)
+  if !ok {
+    log.Printf("%s invalid close_room type.", prefix)
+    return
   }
   roomIdStr := strings.Split(peerId, "-")[0]
   roomId, _ := strconv.ParseInt(roomIdStr, 10, 64)
+  if !closeRoom {
+    r.leaveMediaRoom(s, prefix, peerId, roomId)
+  } else {
+    // Closing a Room is performed by the Room host via the RAS. All RoomUsers
+    // are redirected back to the RFE home page, and media state is cleared.
+    // On the RSS side, we need to just perform a simple cleanup of media
+    // RoomUsers and PeerIds.
+    r.roomUsersMtx.Lock()
+    r.peerIdsMtx.Lock()
+    for _, roomUser := range r.roomUsers[roomId] {
+      delete(r.peerIds, roomUser.sId)
+    }
+    r.peerIdsMtx.Unlock()
+    delete(r.roomUsers, roomId)
+    r.roomUsersMtx.Unlock()
+    log.Printf("%s Closed media roomId=%v", prefix, roomId)
+  }
+}
+
+func (r *RoomzSignalingServer) leaveMediaRoom(s socketio.Conn, prefix, peerId string, roomId int64) {
   delIdx := -1
   r.roomUsersMtx.Lock()
   for i, roomUser := range r.roomUsers[roomId] {
     if peerId == roomUser.peerId {
       delIdx = i
+      r.peerIdsMtx.Lock()
+      delete(r.peerIds, roomUser.sId)
+      r.peerIdsMtx.Unlock()
     } else {
       log.Printf("%s Emitting \"%s\" for peerId=%s to peerId=%s", prefix, removePeer, peerId, roomUser.peerId)
       r.Server.BroadcastToRoom("/", roomUser.sId, removePeer, map[string]interface{}{
@@ -195,7 +242,7 @@ func (r *RoomzSignalingServer) leaveMediaRoomHandler(s socketio.Conn, data map[s
     }
   }
   if delIdx >= 0 {
-    log.Printf("Removed peerId=%s from roomId=%d", peerId, roomId)
+    log.Printf("%s Removed peerId=%s from roomId=%d", prefix, peerId, roomId)
     r.roomUsers[roomId] = append(r.roomUsers[roomId][:delIdx], r.roomUsers[roomId][delIdx+1:]...)
   }
   r.roomUsersMtx.Unlock()
